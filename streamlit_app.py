@@ -34,6 +34,7 @@ with col1:
                     st.session_state.results = predict_denial(raw, parsed, use_ollama=use_ollama)
                     st.session_state.claim_type = st.session_state.results['claim_type']
                     st.session_state.summary_metrics = st.session_state.results['summary']
+                    st.session_state.parsed = parsed
                 else:
                     st.error(f"Parsing failed: {parsed['error']}")
             else:
@@ -47,13 +48,14 @@ with col2:
                 st.session_state.results = predict_denial(raw, parsed, use_ollama=use_ollama)
                 st.session_state.claim_type = st.session_state.results['claim_type']
                 st.session_state.summary_metrics = st.session_state.results['summary']
+                st.session_state.parsed = parsed
             else:
                 st.error(f"Parsing failed: {parsed['error']}")
 
 if st.session_state.results:
     # Mask PHI
-    if 'patient' in parsed:
-        parsed['patient'] = {k: '***MASKED***' if 'name' in k.lower() or 'id' in k.lower() else v for k, v in parsed['patient'].items()}
+    if 'patient' in st.session_state.parsed:
+        st.session_state.parsed['patient'] = {k: '***MASKED***' if 'name' in k.lower() or 'id' in k.lower() else v for k, v in st.session_state.parsed['patient'].items()}
     
     # Summary Section
     st.header('Summary Metrics')
