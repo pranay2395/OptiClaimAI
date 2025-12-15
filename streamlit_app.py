@@ -4,7 +4,11 @@ from pathlib import Path
 from engine.parser import parse_837
 from engine.model import predict_denial
 
-st.set_page_config(page_title='OptiClaimAI', layout='centered')
+st.set_page_config(
+    page_title='OptiClaimAI',
+    layout='centered',
+    page_icon='🧠'
+)
 
 # Initialize session state
 if 'results' not in st.session_state:
@@ -93,3 +97,12 @@ if st.session_state.results:
 st.markdown('---')
 st.markdown('**Samples included:** `data/sample_837/*.837`')
 st.markdown('**To enable Ollama:** make sure Ollama daemon is running and you have pulled a model like `llama3.1`.')
+
+with st.expander("🔐 Security & Privacy"):
+    st.markdown("""
+    • Files processed **in-memory only**  
+    • No uploads stored  
+    • No external API calls unless explicitly enabled  
+    • Deterministic rule engine  
+    • Explainable outputs (no black-box scoring)
+    """)
