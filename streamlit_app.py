@@ -6,6 +6,15 @@ from engine.model import predict_denial
 
 st.set_page_config(page_title='OptiClaimAI', layout='centered')
 
+# Custom CSS for yellow background
+st.markdown("""
+<style>
+.stApp {
+    background-color: yellow;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # Disclaimer banner
 st.error("⚠ OptiClaimAI is a pre-submission QA and analytics tool. Files are processed in-session only and are not stored. Do not upload live production PHI. This tool is not a clearinghouse or adjudication system.")
 
