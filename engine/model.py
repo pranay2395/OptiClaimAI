@@ -43,25 +43,35 @@ def simple_heuristic_predict(parsed_json: dict, findings: list = None) -> dict:
     prob = min(prob, 95)
     return {'denial_probability': prob, 'reasons': reasons, 'problem_segments': problem_segments, 'fix_suggestions': fixes, 'corrected_837': ''}
 
+def detect_claim_type(parsed_json: dict):
+    if any(c.get('revenue_codes') for c in parsed_json.get('claims', [])):
+        return "Institutional", "Revenue codes detected in claim data"
+    return "Professional", "No revenue codes detected, defaulting to professional claim"
+
+def compute_summary(issues: list):
+    total_claims = 1
+    invalid_claims = 1 if issues else 0
+    invalid_percentage = 100 if invalid_claims else 0
+    high_risk_issues = sum(1 for i in issues if i['severity'] == 'High')
+    estimated_rework_cost = invalid_claims * 75
+    return {
+        'total_claims': total_claims,
+        'invalid_claims': invalid_claims,
+        'invalid_percentage': invalid_percentage,
+        'high_risk_issues': high_risk_issues,
+        'estimated_rework_cost': estimated_rework_cost
+    }
+
 def predict_denial(raw_837: str, parsed_json: dict, use_ollama: bool = True) -> dict:
     rules = re_engine.load_rules('dhcs')
-    findings = re_engine.evaluate_rules(parsed_json, rules)
-    # If there are critical errors, return immediate deterministic result
-    if any(f.get('severity') == 'critical' for f in findings):
-        out = simple_heuristic_predict(parsed_json, findings)
-        out['rule_findings'] = findings
-        return out
-    prompt = build_prompt(raw_837, parsed_json, findings)
-    if use_ollama:
-        resp = run_ollama(prompt)
-        try:
-            data = json.loads(resp)
-            if 'denial_probability' in data:
-                data['rule_findings'] = findings
-                return data
-        except Exception:
-            fallback = simple_heuristic_predict(parsed_json, findings)
-            fallback['model_output'] = resp
-            fallback['rule_findings'] = findings
-            return fallback
-    return simple_heuristic_predict(parsed_json, findings)
+    issues = re_engine.evaluate_rules(parsed_json, rules)
+    claim_type, claim_reason = detect_claim_type(parsed_json)
+    summary = compute_summary(issues)
+    dhcs_applied = 'CA' in str(parsed_json).upper() or 'MEDI-CAL' in str(parsed_json).upper()
+    return {
+        'issues': issues,
+        'claim_type': claim_type,
+        'claim_reason': claim_reason,
+        'summary': summary,
+        'dhcs_applied': dhcs_applied
+    }

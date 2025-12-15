@@ -1,9 +1,11 @@
 # engine/rules_engine.py
 import json, os
 from typing import Dict, Any, List
+import streamlit as st
 
 RULES_DIR = os.path.join(os.path.dirname(__file__), 'rules')
 
+@st.cache_data
 def load_rules(scope='dhcs') -> List[Dict[str, Any]]:
     path = os.path.join(RULES_DIR, f'{scope}_rules.json')
     if not os.path.exists(path):
@@ -44,7 +46,21 @@ def evaluate_rules(parsed_json: Dict[str, Any], rules: List[Dict[str, Any]]):
                         match = False; break
                 # add additional cond handlers as needed
             if match:
-                findings.append({'id': rule.get('id'), 'severity': rule.get('severity'), 'message': rule.get('message'), 'fix': rule.get('fix')})
+                sev_map = {'critical': 'High', 'high': 'High', 'medium': 'Medium', 'low': 'Low', 'info': 'Low'}
+                severity = sev_map.get(rule.get('severity', 'medium'), 'Medium')
+                findings.append({
+                    'issue_type': rule.get('id', 'Unknown'),
+                    'severity': severity,
+                    'why_failed': rule.get('message', 'Rule failed'),
+                    'what_to_fix': rule.get('fix', 'Fix the issue'),
+                    'reference': rule.get('id', 'Rule reference')
+                })
         except Exception as e:
-            findings.append({'id': rule.get('id'), 'severity':'error', 'message':f'rule_eval_error: {str(e)}', 'fix': ''})
+            findings.append({
+                'issue_type': 'Evaluation Error',
+                'severity': 'Medium',
+                'why_failed': f'Error evaluating rule: {str(e)}',
+                'what_to_fix': 'Contact support',
+                'reference': rule.get('id', 'Error')
+            })
     return findings
