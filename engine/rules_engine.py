@@ -44,7 +44,6 @@ def evaluate_rules(parsed_json: Dict[str, Any], rules: List[Dict[str, Any]]):
                     found = any(c.get('diagnosis') for c in parsed_json.get('claims', []))
                     if cond.get('value') and not found:
                         match = False; break
-                # add additional cond handlers as needed
             if match:
                 sev_map = {'critical': 'High', 'high': 'High', 'medium': 'Medium', 'low': 'Low', 'info': 'Low'}
                 severity = sev_map.get(rule.get('severity', 'medium'), 'Medium')

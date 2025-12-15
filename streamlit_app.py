@@ -22,14 +22,20 @@ if st.button('Predict from sample1'):
     if sample_path.exists():
         raw = sample_path.read_text(encoding='utf-8')
         parsed = parse_837(raw)
-        result = predict_denial(raw, parsed, use_ollama=use_ollama)
+        if 'error' in parsed:
+            st.error(f"Parsing failed: {parsed['error']}")
+        else:
+            result = predict_denial(raw, parsed, use_ollama=use_ollama)
     else:
         st.error('sample1.837 not found.')
 
 if uploaded and st.button('Predict uploaded'):
     raw = uploaded.getvalue().decode('utf-8', errors='ignore')
     parsed = parse_837(raw)
-    result = predict_denial(raw, parsed, use_ollama=use_ollama)
+    if 'error' in parsed:
+        st.error(f"Parsing failed: {parsed['error']}")
+    else:
+        result = predict_denial(raw, parsed, use_ollama=use_ollama)
 
 if result:
     # Mask PHI

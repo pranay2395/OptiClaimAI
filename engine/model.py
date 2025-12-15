@@ -48,8 +48,8 @@ def detect_claim_type(parsed_json: dict):
         return "Institutional", "Revenue codes detected in claim data"
     return "Professional", "No revenue codes detected, defaulting to professional claim"
 
-def compute_summary(issues: list):
-    total_claims = 1
+def compute_summary(issues: list, parsed_json: dict):
+    total_claims = len(parsed_json.get('claims', []))
     invalid_claims = 1 if issues else 0
     invalid_percentage = 100 if invalid_claims else 0
     high_risk_issues = sum(1 for i in issues if i['severity'] == 'High')
@@ -63,15 +63,24 @@ def compute_summary(issues: list):
     }
 
 def predict_denial(raw_837: str, parsed_json: dict, use_ollama: bool = True) -> dict:
-    rules = re_engine.load_rules('dhcs')
-    issues = re_engine.evaluate_rules(parsed_json, rules)
-    claim_type, claim_reason = detect_claim_type(parsed_json)
-    summary = compute_summary(issues)
-    dhcs_applied = 'CA' in str(parsed_json).upper() or 'MEDI-CAL' in str(parsed_json).upper()
-    return {
-        'issues': issues,
-        'claim_type': claim_type,
-        'claim_reason': claim_reason,
-        'summary': summary,
-        'dhcs_applied': dhcs_applied
-    }
+    try:
+        rules = re_engine.load_rules('dhcs')
+        issues = re_engine.evaluate_rules(parsed_json, rules)
+        claim_type, claim_reason = detect_claim_type(parsed_json)
+        summary = compute_summary(issues, parsed_json)
+        dhcs_applied = 'CA' in str(parsed_json).upper() or 'MEDI-CAL' in str(parsed_json).upper()
+        return {
+            'issues': issues,
+            'claim_type': claim_type,
+            'claim_reason': claim_reason,
+            'summary': summary,
+            'dhcs_applied': dhcs_applied
+        }
+    except Exception as e:
+        return {
+            'issues': [{'issue_type': 'Processing Error', 'severity': 'High', 'why_failed': f'Error during prediction: {str(e)}', 'what_to_fix': 'Contact support', 'reference': 'Error'}],
+            'claim_type': 'Unknown',
+            'claim_reason': 'Error occurred',
+            'summary': {'total_claims': 0, 'invalid_claims': 1, 'invalid_percentage': 100, 'high_risk_issues': 1, 'estimated_rework_cost': 75},
+            'dhcs_applied': False
+        }
