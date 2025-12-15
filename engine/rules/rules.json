@@ -1,0 +1,22 @@
+{
+  "version": "1.0",
+  "rule_sets": [
+    {
+      "id": "CLAIM_TYPE_DETECTION",
+      "name": "Claim Type Detection",
+      "description": "Detect institutional vs professional vs dental based on 837 loops and segments.",
+      "rules": [
+        {
+          "id": "CTD_001",
+          "condition": "presence_of('CLM01') and presence_of('2300/CLM') and presence_of('2400/SV2')",
+          "result": "institutional"
+        },
+        {
+          "id": "CTD_002",
+          "condition": "presence_of('CLM01') and presence_of('2300/CLM') and presence_of('2400/SV1')",
+          "result": "professional"
+        }
+      ]
+    }
+  ]
+}

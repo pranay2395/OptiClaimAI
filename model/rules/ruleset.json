@@ -1,0 +1,169 @@
+{
+  "rules": [
+
+    {
+      "id": "R1001",
+      "category": "claim_structure",
+      "claim_type": "both",
+      "severity": "error",
+      "description": "Missing or invalid transaction set header",
+      "loop": "ISA/GS/ST",
+      "segment": "ST",
+      "element": "ST01",
+      "condition": "st01 != '837'",
+      "dhcs_reference": "X12 5010A1 requirement for valid healthcare claim transaction.",
+      "x12_reference": "X12 005010X222A1 — 2000A Billing Provider Hierarchical Level",
+      "recommendation": "Verify file begins with a valid ST*837* segment."
+    },
+
+    {
+      "id": "R2001",
+      "category": "claim_type_detection",
+      "claim_type": "both",
+      "severity": "error",
+      "description": "Unable to determine if claim is Professional (837P) or Institutional (837I)",
+      "loop": "2000A",
+      "segment": "BHT",
+      "element": "BHT06",
+      "condition": "bht06 not in ['CH', 'RP']",
+      "dhcs_reference": "Medi-Cal requires correct claim type for adjudication.",
+      "x12_reference": "BHT06 = 'CH' (837P), 'RP' (837I)",
+      "recommendation": "Set BHT06 to CH for 837P or RP for 837I."
+    },
+
+    {
+      "id": "R2101",
+      "category": "claim_type_rules",
+      "claim_type": "837I",
+      "severity": "error",
+      "description": "UB-04 bill type missing for 837I",
+      "loop": "2300",
+      "segment": "CLM",
+      "element": "CLM05-1",
+      "condition": "clm05_1 is null",
+      "dhcs_reference": "UB-04 type is mandatory for Medi-Cal institutional claims.",
+      "x12_reference": "Loop 2300 — CLM05-1 Facility Type Code",
+      "recommendation": "Populate CLM05-1 with valid UB-04 bill type (e.g., 111, 131, 861)."
+    },
+
+    {
+      "id": "R2102",
+      "category": "claim_type_rules",
+      "claim_type": "837P",
+      "severity": "error",
+      "description": "Service line CPT/HCPCS code required for professional claim",
+      "loop": "2400",
+      "segment": "SV1",
+      "element": "SV101-2",
+      "condition": "sv101_2 is null",
+      "dhcs_reference": "CPT or HCPCS is required for Medi-Cal professional services.",
+      "x12_reference": "SV101-2 = Procedure Code",
+      "recommendation": "Include valid CPT/HCPCS procedure code."
+    },
+
+    {
+      "id": "R3001",
+      "category": "member_eligibility",
+      "claim_type": "both",
+      "severity": "error",
+      "description": "Patient eligibility does not cover date of service",
+      "loop": "2010BA",
+      "segment": "DMG/DTP",
+      "element": "DTP03",
+      "condition": "not (eligibility_start <= dos <= eligibility_end)",
+      "dhcs_reference": "Medi-Cal requires active eligibility on DOS.",
+      "x12_reference": "Loop 2010BA - Subscriber info",
+      "recommendation": "Verify eligibility dates using Medi-Cal POS or 270/271 transaction."
+    },
+
+    {
+      "id": "R3010",
+      "category": "member_demographics",
+      "claim_type": "both",
+      "severity": "warning",
+      "description": "DOB inconsistent with age-restricted procedure",
+      "loop": "2400",
+      "segment": "SV1/SV2",
+      "element": "SV101-2",
+      "condition": "(procedure_code in pediatric_list and patient_age > 21) or (procedure_code in geriatric_only and patient_age < 65)",
+      "dhcs_reference": "Procedure coverage based on age varies for DHCS.",
+      "x12_reference": "SV101-2 CPT code",
+      "recommendation": "Verify CPT code matches patient age policy."
+    },
+
+    {
+      "id": "R4001",
+      "category": "provider_validation",
+      "claim_type": "both",
+      "severity": "error",
+      "description": "Billing provider NPI missing or invalid",
+      "loop": "2010AA",
+      "segment": "NM1",
+      "element": "NM109",
+      "condition": "len(npi) != 10 or not npi.isdigit()",
+      "dhcs_reference": "Medi-Cal requires valid NPI.",
+      "x12_reference": "NM109 = Billing Provider NPI",
+      "recommendation": "Ensure NPI is a valid 10-digit number."
+    },
+
+    {
+      "id": "R4002",
+      "category": "provider_validation",
+      "claim_type": "both",
+      "severity": "warning",
+      "description": "Rendering provider taxonomy missing",
+      "loop": "2310B",
+      "segment": "PRV",
+      "element": "PRV03",
+      "condition": "taxonomy is null",
+      "dhcs_reference": "DHCS recommends taxonomy for correct reimbursement.",
+      "x12_reference": "Loop 2310B PRV segment",
+      "recommendation": "Include taxonomy code for rendering provider."
+    },
+
+    {
+      "id": "R5001",
+      "category": "coding_rules",
+      "claim_type": "837P",
+      "severity": "error",
+      "description": "Procedure code invalid for diagnosis",
+      "loop": "2400",
+      "segment": "SV1",
+      "element": "SV101",
+      "condition": "(procedure, diagnosis) not in code_to_dx_map",
+      "dhcs_reference": "Medi-Cal follows CMS NCCI and DHCS LCD policies.",
+      "x12_reference": "Loop 2400 SV1",
+      "recommendation": "Check CPT/ICD pairing per DHCS coverage."
+    },
+
+    {
+      "id": "R5002",
+      "category": "coding_rules",
+      "claim_type": "both",
+      "severity": "warning",
+      "description": "Modifier 25 missing for E/M visit with procedure",
+      "loop": "2400",
+      "segment": "SV1",
+      "element": "SV101-3",
+      "condition": "procedure in em_list and '25' not in modifiers",
+      "dhcs_reference": "DHCS modifier guidelines.",
+      "x12_reference": "SV101 component 3",
+      "recommendation": "Add modifier 25 if E/M service is significant and separately identifiable."
+    },
+
+    {
+      "id": "R6001",
+      "category": "dhcs_special_rules",
+      "claim_type": "837I",
+      "severity": "error",
+      "description": "Medi-Cal requires admit date for inpatient claims",
+      "loop": "2300",
+      "segment": "DTP",
+      "element": "DTP03",
+      "condition": "admit_date is null and bill_type[0] in ['1', '2']",
+      "dhcs_reference": "Medi-Cal Inpatient Hospital Manual",
+      "x12_reference": "Loop 2300 DTP*435",
+      "recommendation": "Add DTP*435*admission date segment."
+    }
+  ]
+}

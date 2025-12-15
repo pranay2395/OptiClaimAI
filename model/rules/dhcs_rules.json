@@ -1,0 +1,47 @@
+[
+  {
+    "id": "DHCS-CLM-REQUIRED",
+    "severity": "critical",
+    "message": "No CLM segment found – claim cannot be adjudicated",
+    "fix": "Include CLM segment with claim amount and frequency",
+    "conditions": [
+      { "type": "claim_has_segment", "segment": "CLM" }
+    ]
+  },
+  {
+    "id": "DHCS-AMT-NONZERO",
+    "severity": "high",
+    "message": "Claim amount is zero or missing",
+    "fix": "Ensure CLM element 2 contains billed amount > 0",
+    "conditions": [
+      { "type": "amount_nonzero", "value": true }
+    ]
+  },
+  {
+    "id": "DHCS-DIAG-REQUIRED",
+    "severity": "medium",
+    "message": "Missing diagnosis (HI) — required for many Medi-Cal services",
+    "fix": "Include HI segment(s) with ICD-10 codes and pointers",
+    "conditions": [
+      { "type": "diagnosis_present", "value": true }
+    ]
+  },
+  {
+    "id": "DHCS-TXN-INSTITUTIONAL",
+    "severity": "info",
+    "message": "Transaction is institutional (SV2) — apply 837I companion rules",
+    "fix": "Validate institutional-specific UB-04 related loops",
+    "conditions": [
+      { "type": "txn_is", "value": "institutional" }
+    ]
+  },
+  {
+    "id": "DHCS-TXN-PROFESSIONAL",
+    "severity": "info",
+    "message": "Transaction is professional (SV1) — apply 837P companion rules",
+    "fix": "Validate professional-specific loops, modifiers and POS",
+    "conditions": [
+      { "type": "txn_is", "value": "professional" }
+    ]
+  }
+]
