@@ -6,6 +6,12 @@ from engine.model import predict_denial
 
 st.set_page_config(page_title='OptiClaimAI', layout='centered')
 
+# Initialize session state
+if 'results' not in st.session_state:
+    st.session_state.results = None
+    st.session_state.claim_type = None
+    st.session_state.summary_metrics = None
+
 # Disclaimer banner
 st.error("⚠ OptiClaimAI is a pre-submission QA and analytics tool. Files are processed in-session only and are not stored. Do not upload live production PHI. This tool is not a clearinghouse or adjudication system.")
 
@@ -16,35 +22,42 @@ st.markdown('Upload a synthetic 837 file and run validation.')
 uploaded = st.file_uploader('Upload 837 file', type=['txt','837'])
 use_ollama = st.checkbox('Use Ollama (local)', value=False)
 
-result = None
-if st.button('Predict from sample1'):
-    sample_path = Path('data/sample_837/sample1.837')
-    if sample_path.exists():
-        raw = sample_path.read_text(encoding='utf-8')
-        parsed = parse_837(raw)
-        if 'error' in parsed:
-            st.error(f"Parsing failed: {parsed['error']}")
-        else:
-            result = predict_denial(raw, parsed, use_ollama=use_ollama)
-    else:
-        st.error('sample1.837 not found.')
+col1, col2 = st.columns(2)
+with col1:
+    if st.button('Predict from sample1'):
+        with st.spinner('Processing sample file...'):
+            sample_path = Path('data/sample_837/sample1.837')
+            if sample_path.exists():
+                raw = sample_path.read_text(encoding='utf-8')
+                parsed = parse_837(raw)
+                if 'error' not in parsed:
+                    st.session_state.results = predict_denial(raw, parsed, use_ollama=use_ollama)
+                    st.session_state.claim_type = st.session_state.results['claim_type']
+                    st.session_state.summary_metrics = st.session_state.results['summary']
+                else:
+                    st.error(f"Parsing failed: {parsed['error']}")
+            else:
+                st.error('sample1.837 not found.')
+with col2:
+    if uploaded and st.button('Run Analysis on Uploaded'):
+        with st.spinner('Processing uploaded file...'):
+            raw = uploaded.getvalue().decode('utf-8', errors='ignore')
+            parsed = parse_837(raw)
+            if 'error' not in parsed:
+                st.session_state.results = predict_denial(raw, parsed, use_ollama=use_ollama)
+                st.session_state.claim_type = st.session_state.results['claim_type']
+                st.session_state.summary_metrics = st.session_state.results['summary']
+            else:
+                st.error(f"Parsing failed: {parsed['error']}")
 
-if uploaded and st.button('Predict uploaded'):
-    raw = uploaded.getvalue().decode('utf-8', errors='ignore')
-    parsed = parse_837(raw)
-    if 'error' in parsed:
-        st.error(f"Parsing failed: {parsed['error']}")
-    else:
-        result = predict_denial(raw, parsed, use_ollama=use_ollama)
-
-if result:
+if st.session_state.results:
     # Mask PHI
     if 'patient' in parsed:
         parsed['patient'] = {k: '***MASKED***' if 'name' in k.lower() or 'id' in k.lower() else v for k, v in parsed['patient'].items()}
     
     # Summary Section
     st.header('Summary Metrics')
-    summary = result['summary']
+    summary = st.session_state.summary_metrics
     col1, col2, col3 = st.columns(3)
     with col1:
         st.metric('Total Claims', summary['total_claims'])
@@ -57,15 +70,15 @@ if result:
     
     # Claim Type Section
     st.header('Claim Type Detection')
-    st.write(f"**Detected Type:** {result['claim_type']}")
-    st.write(f"**Reasoning:** {result['claim_reason']}")
+    st.write(f"**Detected Type:** {st.session_state.claim_type}")
+    st.write(f"**Reasoning:** {st.session_state.results['claim_reason']}")
     
-    if result['dhcs_applied']:
+    if st.session_state.results['dhcs_applied']:
         st.info("California DHCS Rules Applied")
     
     # Detailed Issues Section
     st.header('Detailed Confirmed Issues')
-    issues = result['issues']
+    issues = st.session_state.results['issues']
     if issues:
         for issue in issues:
             with st.expander(f"{issue['issue_type']} ({issue['severity']} Severity)"):
