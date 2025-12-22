@@ -8,17 +8,20 @@ def call_ollama(prompt: str) -> str:
     Uses llama3.1 model.
     """
     try:
-        result = subprocess.run(
+        proc = subprocess.Popen(
             ['ollama', 'run', 'llama3.1'],
-            input=prompt,
-            text=True,
-            capture_output=True,
-            timeout=60
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=False
         )
-        if result.returncode == 0:
-            return result.stdout.strip()
+        stdout, stderr = proc.communicate(input=prompt.encode('utf-8'), timeout=60)
+        if proc.returncode == 0:
+            output = stdout.decode('utf-8', errors='replace').strip()
+            return output
         else:
-            return f"Error: {result.stderr.strip()}"
+            error = stderr.decode('utf-8', errors='replace').strip()
+            return f"Error: {error}"
     except Exception as e:
         return f"Error: {str(e)}"
 
