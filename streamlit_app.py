@@ -3,10 +3,11 @@ import json
 from pathlib import Path
 from engine.parser import parse_837
 from engine.model import predict_denial
-from engine.llm import explain_issue, call_ollama, check_ollama
+from engine.llm import explain_issue, call_ollama, check_ollama, check_online_ai
 
-# Check Ollama availability
+# Check AI availability
 ollama_available = check_ollama()
+online_ai_available = check_online_ai()
 
 st.set_page_config(
     page_title='OptiClaimAI',
@@ -129,14 +130,17 @@ if st.session_state.results:
                 st.write(f"**Reference:** {issue['reference']}")
                 
                 # AI Explanation Button
-                if ollama_available:
+                ai_available = ollama_available or online_ai_available
+                if ai_available:
                     if st.button(f"Explain with AI", key=f"explain_{issue['issue_type']}"):
                         with st.spinner("Generating AI explanation..."):
+                            st.write("🧠 Sending prompt to AI...")
                             explanation = explain_issue(issue, st.session_state.parsed, st.session_state.raw)
+                            st.write("✅ AI response received")
                             st.session_state.explanations[issue['issue_type']] = explanation
                             st.rerun()  # To update the UI immediately
                 else:
-                    st.info("🤖 AI explanations require local Ollama. Install and run Ollama locally for AI features.")
+                    st.info("🤖 AI explanations require either local Ollama or internet connection. Install Ollama locally or ensure internet access for online AI fallback.")
                 
                 # Display AI Explanation if available
                 if issue['issue_type'] in st.session_state.explanations:
@@ -150,21 +154,22 @@ if st.session_state.results:
                     )
                     if ollama_available and st.button(f"Submit Follow-up", key=f"submit_followup_{issue['issue_type']}"):
                         if followup_question.strip():
-                            prompt = f"""
-Previous AI Explanation: {st.session_state.explanations[issue['issue_type']]}
+                            with st.spinner("Generating follow-up response..."):
+                                st.write("🧠 Sending follow-up to Ollama...")
+                                prompt = f"""Previous explanation: {st.session_state.explanations[issue['issue_type']]}
 
-Follow-up Question: {followup_question}
+Follow-up question: {followup_question}
 
-As a US Healthcare EDI Expert, provide a clear answer to this follow-up question, referencing TR3 standards, loops, segments, and payer rules where applicable.
-"""
-                            followup_answer = call_ollama(prompt)
-                            if issue['issue_type'] not in st.session_state.followups:
-                                st.session_state.followups[issue['issue_type']] = []
-                            st.session_state.followups[issue['issue_type']].append({
-                                'question': followup_question,
-                                'answer': followup_answer
-                            })
-                            st.rerun()  # Update UI
+Answer briefly, citing TR3 or payer guidance."""
+                                followup_answer = call_ollama(prompt, timeout=45)
+                                st.write("✅ Follow-up response received")
+                                if issue['issue_type'] not in st.session_state.followups:
+                                    st.session_state.followups[issue['issue_type']] = []
+                                st.session_state.followups[issue['issue_type']].append({
+                                    'question': followup_question,
+                                    'answer': followup_answer
+                                })
+                                st.rerun()  # Update UI
                     
                     # Display Follow-ups
                     if issue['issue_type'] in st.session_state.followups:
@@ -178,16 +183,25 @@ As a US Healthcare EDI Expert, provide a clear answer to this follow-up question
 
 st.markdown('---')
 st.markdown('**Samples included:** `data/sample_837/*.837`')
+
+# AI Status
+ai_status = ""
 if ollama_available:
-    st.markdown('**AI Status:** ✅ Ollama connected - AI explanations available')
+    ai_status = "✅ Ollama connected - Local AI explanations available"
+elif online_ai_available:
+    ai_status = "🌐 Ollama unavailable - Using free online AI fallback"
 else:
-    st.markdown('**AI Status:** ❌ Ollama not detected - Run `ollama serve` locally for AI features')
+    ai_status = "❌ No AI available - Install Ollama or check internet connection"
+
+st.markdown(f'**AI Status:** {ai_status}')
 
 with st.expander("🔐 Security & Privacy"):
     st.markdown("""
     • Files processed **in-memory only**  
     • No uploads stored  
-    • AI explanations generated locally via Ollama (no external APIs)  
+    • **Primary:** AI explanations generated locally via Ollama (no external APIs)  
+    • **Fallback:** Free online AI (gpt2 from Hugging Face) if Ollama unavailable  
     • Deterministic rule engine  
-    • Explainable outputs (no black-box scoring)
+    • Explainable outputs (no black-box scoring)  
+    • No API keys or authentication required
     """)
