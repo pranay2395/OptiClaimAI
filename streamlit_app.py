@@ -26,7 +26,7 @@ st.markdown('Upload a synthetic 837 file and run validation.')
 uploaded = st.file_uploader('Upload 837 file', type=['txt','837'])
 use_ollama = st.checkbox('Use Ollama (local)', value=False)
 
-col1, col2 = st.columns(2)
+col1, col2, col3 = st.columns(3)
 with col1:
     if st.button('Predict from sample1'):
         with st.spinner('Processing sample file...'):
@@ -44,7 +44,30 @@ with col1:
             else:
                 st.error('sample1.837 not found.')
 with col2:
-    if uploaded and st.button('Run Analysis on Uploaded'):
+    if st.button('Predict from sample2'):
+        with st.spinner('Processing sample file...'):
+            sample_path = Path('data/sample_837/sample2.837')
+            if sample_path.exists():
+                raw = sample_path.read_text(encoding='utf-8')
+                parsed = parse_837(raw)
+                if 'error' not in parsed:
+                    st.session_state.results = predict_denial(raw, parsed, use_ollama=use_ollama)
+                    st.session_state.claim_type = st.session_state.results['claim_type']
+                    st.session_state.summary_metrics = st.session_state.results['summary']
+                    st.session_state.parsed = parsed
+                else:
+                    st.error(f"Parsing failed: {parsed['error']}")
+            else:
+                st.error('sample2.837 not found.')
+with col3:
+    if st.button('Clear Results'):
+        st.session_state.results = None
+        st.session_state.claim_type = None
+        st.session_state.summary_metrics = None
+        st.session_state.parsed = None
+        st.success('Results cleared. Upload a new file or select a sample.')
+
+if uploaded and st.button('Run Analysis on Uploaded'):
         with st.spinner('Processing uploaded file...'):
             raw = uploaded.getvalue().decode('utf-8', errors='ignore')
             parsed = parse_837(raw)
