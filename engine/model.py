@@ -62,7 +62,7 @@ def compute_summary(issues: list, parsed_json: dict):
         'estimated_rework_cost': estimated_rework_cost
     }
 
-def predict_denial(raw_837: str, parsed_json: dict, use_ollama: bool = True) -> dict:
+def predict_denial(raw_837: str, parsed_json: dict) -> dict:
     try:
         rules = re_engine.load_rules('dhcs')
         issues = re_engine.evaluate_rules(parsed_json, rules)
