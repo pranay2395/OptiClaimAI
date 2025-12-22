@@ -26,7 +26,15 @@ def call_ollama(prompt: str) -> str:
     except requests.exceptions.RequestException as e:
         return f"Error: {str(e)}"
 
-def explain_issue(issue: dict, parsed_claim: dict, raw_837: str) -> str:
+def check_ollama() -> bool:
+    """
+    Check if Ollama is running and accessible.
+    """
+    try:
+        response = requests.get("http://localhost:11434/api/tags", timeout=5)
+        return response.status_code == 200
+    except:
+        return False
     """
     Generate a natural-language explanation for a specific issue using Ollama.
     Builds an EDI-aware prompt referencing TR3, loops, segments, etc.
