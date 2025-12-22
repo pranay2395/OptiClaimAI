@@ -16,7 +16,7 @@ def call_ollama(prompt: str) -> str:
                 "prompt": prompt,
                 "stream": False
             },
-            timeout=60
+            timeout=120
         )
         if response.status_code == 200:
             data = response.json()
@@ -35,10 +35,20 @@ def check_ollama() -> bool:
         return response.status_code == 200
     except:
         return False
+
+def explain_issue(issue: dict, parsed_claim: dict, raw_837: str) -> str:
     """
     Generate a natural-language explanation for a specific issue using Ollama.
     Builds an EDI-aware prompt referencing TR3, loops, segments, etc.
     """
+    # Summarize parsed_claim to key fields
+    summary = {
+        "transaction_type": parsed_claim.get("transaction_type"),
+        "submitter": parsed_claim.get("submitter", {}).get("name"),
+        "claims_count": len(parsed_claim.get("claims", [])),
+        "key_segments": [c.get("CLM", [""])[0] for c in parsed_claim.get("claims", []) if c.get("CLM")]
+    }
+    
     prompt = f"""
 You are a US Healthcare EDI Expert specializing in 837 claims processing under TR3 standards.
 
@@ -53,11 +63,11 @@ Issue Details:
 - Fix: {issue.get('what_to_fix')}
 - Reference: {issue.get('reference')}
 
-Parsed Claim Context (JSON):
-{json.dumps(parsed_claim, indent=2)}
+Claim Summary:
+{json.dumps(summary, indent=2)}
 
-Raw 837 EDI Snippet (first 2000 characters):
-{raw_837[:2000]}
+Raw 837 Snippet (first 500 characters):
+{raw_837[:500]}
 
 Provide a clear, concise explanation of this issue and its implications.
 """
