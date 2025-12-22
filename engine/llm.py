@@ -1,28 +1,29 @@
 # engine/llm.py
 import subprocess
 import json
+import requests
 
 def call_ollama(prompt: str) -> str:
     """
-    Call Ollama locally using subprocess.
+    Call Ollama via local REST API.
     Uses llama3.1 model.
     """
     try:
-        proc = subprocess.Popen(
-            ['ollama', 'run', 'llama3.1'],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=False
+        response = requests.post(
+            "http://localhost:11434/api/generate",
+            json={
+                "model": "llama3.1",
+                "prompt": prompt,
+                "stream": False
+            },
+            timeout=60
         )
-        stdout, stderr = proc.communicate(input=prompt.encode('utf-8'), timeout=60)
-        if proc.returncode == 0:
-            output = stdout.decode('utf-8', errors='replace').strip()
-            return output
+        if response.status_code == 200:
+            data = response.json()
+            return data.get("response", "").strip()
         else:
-            error = stderr.decode('utf-8', errors='replace').strip()
-            return f"Error: {error}"
-    except Exception as e:
+            return f"Error: HTTP {response.status_code} - {response.text}"
+    except requests.exceptions.RequestException as e:
         return f"Error: {str(e)}"
 
 def explain_issue(issue: dict, parsed_claim: dict, raw_837: str) -> str:
