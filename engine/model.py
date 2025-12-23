@@ -1,7 +1,11 @@
 # engine/model.py
-import json, subprocess
+import json
 from pathlib import Path
 from . import rules_engine as re_engine
+from .llm import call_ollama
+from .logger import setup_logger
+
+logger = setup_logger(__name__)
 
 # The prompts live at the repository root under `model/prompts`.
 # `__file__` is `engine/model.py` so walk up two levels to reach the repo root.
@@ -17,13 +21,14 @@ def build_prompt(raw_837: str, parsed_json: dict, findings: list) -> str:
     return prompt
 
 def run_ollama(prompt: str, model: str = 'llama3.1') -> str:
-    # On-prem: this calls local Ollama binary. You may swap for HTTP API if you run Ollama as a service.
-    try:
-        p = subprocess.run(['ollama', 'run', model], input=prompt.encode('utf-8'), stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=90)
-        out = p.stdout.decode('utf-8').strip()
-        return out or p.stderr.decode('utf-8').strip()
-    except Exception as e:
-        return json.dumps({'error':'ollama_call_failed','reason':str(e)})
+    """Call Ollama via REST API (replaced subprocess with reliable implementation)."""
+    logger.info(f"Calling Ollama with model {model}")
+    response = call_ollama(prompt, model=model, timeout=90)
+    if "error" in response.lower() or "timed out" in response.lower():
+        logger.warning(f"Ollama call failed: {response}")
+    else:
+        logger.info("Ollama call succeeded")
+    return response
 
 def simple_heuristic_predict(parsed_json: dict, findings: list = None) -> dict:
     reasons = []
@@ -64,11 +69,15 @@ def compute_summary(issues: list, parsed_json: dict):
 
 def predict_denial(raw_837: str, parsed_json: dict) -> dict:
     try:
-        rules = re_engine.load_rules('dhcs')
+        logger.info("Starting denial prediction")
+        rules = re_engine.load_rules('dhcs_comprehensive')
         issues = re_engine.evaluate_rules(parsed_json, rules)
         claim_type, claim_reason = detect_claim_type(parsed_json)
         summary = compute_summary(issues, parsed_json)
         dhcs_applied = 'CA' in str(parsed_json).upper() or 'MEDI-CAL' in str(parsed_json).upper()
+        
+        logger.info(f"Prediction complete: {claim_type} claim with {len(issues)} issues")
+        
         return {
             'issues': issues,
             'claim_type': claim_type,
@@ -77,6 +86,7 @@ def predict_denial(raw_837: str, parsed_json: dict) -> dict:
             'dhcs_applied': dhcs_applied
         }
     except Exception as e:
+        logger.error(f"Error during prediction: {str(e)}")
         return {
             'issues': [{'issue_type': 'Processing Error', 'severity': 'High', 'why_failed': f'Error during prediction: {str(e)}', 'what_to_fix': 'Contact support', 'reference': 'Error'}],
             'claim_type': 'Unknown',

@@ -26,3 +26,5 @@ data/parsed_json/
 model/training/
 engine/code_sets/npi_enrollment.csv
 engine/code_sets/NPPES*
+engine/src/          # Deprecated - code moved to engine/
+engine/tests/        # Deprecated test files

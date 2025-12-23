@@ -1,0 +1,128 @@
+[
+  {
+    "id": "DHCS-CLM-REQUIRED",
+    "severity": "critical",
+    "message": "No CLM segment found – claim cannot be adjudicated",
+    "fix": "Include CLM segment with claim amount and frequency",
+    "conditions": [
+      { "type": "claim_has_segment", "segment": "CLM", "value": false }
+    ]
+  },
+  {
+    "id": "DHCS-AMT-NONZERO",
+    "severity": "high",
+    "message": "Claim amount is zero or missing",
+    "fix": "Ensure CLM element 2 contains billed amount > 0",
+    "conditions": [
+      { "type": "amount_nonzero", "value": false }
+    ]
+  },
+  {
+    "id": "DHCS-DIAG-REQUIRED",
+    "severity": "medium",
+    "message": "Missing diagnosis (HI) — required for many Medi-Cal services",
+    "fix": "Include HI segment(s) with ICD-10 codes and pointers",
+    "conditions": [
+      { "type": "diagnosis_present", "value": false }
+    ]
+  },
+  {
+    "id": "DHCS-TXN-INSTITUTIONAL",
+    "severity": "info",
+    "message": "Transaction is institutional (SV2) — apply 837I companion rules",
+    "fix": "Validate institutional-specific UB-04 related loops",
+    "conditions": [
+      { "type": "txn_is", "value": "institutional" }
+    ]
+  },
+  {
+    "id": "DHCS-TXN-PROFESSIONAL",
+    "severity": "info",
+    "message": "Transaction is professional (SV1) — apply 837P companion rules",
+    "fix": "Validate professional-specific loops, modifiers and POS",
+    "conditions": [
+      { "type": "txn_is", "value": "professional" }
+    ]
+  },
+  {
+    "id": "ST01-VALIDATION",
+    "severity": "critical",
+    "message": "Invalid transaction set header — ST01 must be '837'",
+    "fix": "Verify file begins with ST*837 segment",
+    "conditions": [
+      { "type": "transaction_header_valid", "value": true }
+    ]
+  },
+  {
+    "id": "NPI-VALIDITY",
+    "severity": "high",
+    "message": "Invalid or missing NPI — claims require valid 10-digit NPI",
+    "fix": "Include valid provider NPI (Loop 1000A/1000B)",
+    "conditions": [
+      { "type": "npi_valid", "value": true }
+    ]
+  },
+  {
+    "id": "DIAGNOSIS-PROCEDURE-PAIRING",
+    "severity": "medium",
+    "message": "Diagnosis and procedure codes may be improperly paired",
+    "fix": "Verify diagnosis codes are appropriate for procedures claimed",
+    "conditions": [
+      { "type": "diagnosis_to_procedure_valid", "value": true }
+    ]
+  },
+  {
+    "id": "AGE-APPROPRIATE-SERVICE",
+    "severity": "medium",
+    "message": "Service may not be age-appropriate for patient",
+    "fix": "Verify patient age is appropriate for claimed service",
+    "conditions": [
+      { "type": "age_appropriate_procedure", "value": true }
+    ]
+  },
+  {
+    "id": "BILL-TYPE-PRESENT",
+    "severity": "high",
+    "message": "Institutional claims (837I) require bill type code",
+    "fix": "Include UB-04 bill type code (usually 131 for hospital)",
+    "conditions": [
+      { "type": "bill_type_present", "value": true }
+    ]
+  },
+  {
+    "id": "SERVICE-LINE-EXISTS",
+    "severity": "critical",
+    "message": "No service lines found — at least one service must be claimed",
+    "fix": "Include SV1 (professional) or SV2 (institutional) service line segment",
+    "conditions": [
+      { "type": "service_line_exists", "value": true }
+    ]
+  },
+  {
+    "id": "PROVIDER-IDENTIFICATION",
+    "severity": "critical",
+    "message": "Missing or invalid provider identification",
+    "fix": "Include provider NPI and/or taxonomy code in claims",
+    "conditions": [
+      { "type": "provider_identified", "value": true }
+    ]
+  },
+  {
+    "id": "SUBSCRIBER-IDENTIFICATION",
+    "severity": "critical",
+    "message": "Missing or invalid subscriber identification",
+    "fix": "Include member ID and/or dates of service",
+    "conditions": [
+      { "type": "subscriber_identified", "value": true }
+    ]
+  },
+  {
+    "id": "PLACE-OF-SERVICE",
+    "severity": "medium",
+    "message": "Invalid or missing place of service code",
+    "fix": "Include valid POS code (01=office, 11=patient home, etc.)",
+    "conditions": [
+      { "type": "place_of_service_valid", "value": true }
+    ]
+  }
+]
