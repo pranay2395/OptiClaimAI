@@ -5,3 +5,4 @@ openpyxl
 pydantic
 ollama
 tqdm
+plotly
