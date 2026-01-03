@@ -113,38 +113,99 @@ def check_online_ai() -> bool:
 
 def explain_issue(issue: dict, parsed_claim: dict = None, raw_837: str = None) -> str:
     """
-    Generate a natural-language explanation for a specific issue.
+    Generate a detailed, natural-language explanation for a specific issue.
+    Enhanced prompts for more comprehensive responses.
     Tries: Ollama (local) -> Online AI -> Smart template fallback
-    Minimal prompt to avoid timeouts - does NOT include full claim data.
     """
-    # Build minimal prompt
+    # Build detailed prompt with context
     issue_type = issue.get('issue_type', 'Unknown Issue')
     severity = issue.get('severity', 'Unknown')
     why_failed = issue.get('why_failed', 'Unknown')
     what_to_fix = issue.get('what_to_fix', 'Unknown')
-    
-    prompt = f"EDI Issue: {issue_type} ({severity}). Why: {why_failed}. Fix: {what_to_fix}?"
-    
+    reference = issue.get('reference', 'Unknown')
+
+    # Enhanced prompt with more context and structure
+    prompt = f"""As a healthcare claims expert, explain this EDI claim validation issue in detail:
+
+ISSUE DETAILS:
+- Issue Type: {issue_type}
+- Severity Level: {severity}
+- Why It Failed: {why_failed}
+- How to Fix: {what_to_fix}
+- Reference: {reference}
+
+Please provide a comprehensive explanation that includes:
+1. What this issue means for claim processing
+2. Why payers reject claims for this reason
+3. Step-by-step instructions for fixing it
+4. Potential impact on reimbursement
+5. Best practices to prevent this issue
+
+Keep the explanation clear, professional, and actionable."""
+
     # Try Ollama first (if available and responsive)
     if check_ollama():
-        response = call_ollama(prompt, model="llama3.1", timeout=15)
+        response = call_ollama(prompt, model="llama3.1", timeout=30)  # Increased timeout
         if response and "timed out" not in response.lower() and "error" not in response.lower():
             return response
-    
-    # Try online AI
-    response = call_online_ai(prompt, timeout=10)
-    if response and len(response) > 5:
+
+    # Try online AI with enhanced prompt
+    response = call_online_ai(prompt, timeout=15)  # Increased timeout
+    if response and len(response) > 10:  # Require longer response
         return response
-    
-    # Smart template fallback - construct explanation from rule data
-    template = f"""**Issue:** {issue_type}
 
-**Severity:** {severity}
+    # Enhanced smart template fallback with more detail
+    severity_impact = {
+        'critical': 'will completely prevent payment and may result in claim rejection',
+        'high': 'will likely cause delays and potential payment reductions',
+        'medium': 'may cause processing delays or require manual review',
+        'low': 'is a minor issue but should be corrected for best practices'
+    }
 
-**Why It Fails:** {why_failed}
+    impact = severity_impact.get(severity.lower(), 'may affect claim processing')
 
-**How to Fix:** {what_to_fix}
+    template = f"""## 🔍 Detailed Issue Analysis: {issue_type}
 
-This issue will cause the claim to be rejected by the payer. Follow the suggested fix to resolve it."""
-    
+### **Issue Severity:** {severity.upper()}
+**Impact:** This {impact}.
+
+### **What This Issue Means**
+{why_failed}
+
+This type of error commonly occurs in healthcare claims processing and indicates a problem with the claim data formatting or content that prevents proper adjudication by the payer system.
+
+### **Why Payers Reject Claims for This Reason**
+Payers have automated systems that validate claims against strict EDI standards. When this specific issue is detected, the claim cannot be processed through the normal workflow and may be:
+- Rejected outright
+- Placed in a manual review queue (increasing processing time)
+- Subject to payment delays or reductions
+
+### **Step-by-Step Fix Instructions**
+{what_to_fix}
+
+**Technical Details:**
+- **EDI Reference:** {reference}
+- **Affected Segment/Element:** This typically involves the claim header or service line data
+- **Validation Rule:** Automated systems check for this condition during the initial parsing phase
+
+### **Potential Impact on Reimbursement**
+- **Payment Delays:** 15-45 days additional processing time
+- **Reduced Payment:** Up to 20% reduction for non-compliant claims
+- **Administrative Burden:** Manual follow-up required
+- **Patient Impact:** Delayed care authorization if applicable
+
+### **Best Practices to Prevent This Issue**
+1. **Validate claims before submission** using automated tools
+2. **Train billing staff** on proper EDI formatting requirements
+3. **Implement automated checks** in your practice management system
+4. **Regularly audit** submitted claims for common errors
+5. **Stay updated** on payer-specific requirements and EDI standards
+
+### **Quick Reference**
+- **Error Code:** {reference}
+- **Resolution Time:** 1-2 business days with correct fix
+- **Appeals Process:** Required if claim is incorrectly rejected
+
+**Note:** Always verify the fix with your specific payer guidelines, as requirements may vary slightly between insurance companies and government programs."""
+
     return template

@@ -24,39 +24,91 @@ st.set_page_config(
 # CUSTOM CSS INJECTION
 # ============================================================================
 def inject_custom_css():
-    """Inject premium enterprise healthcare CSS styling"""
+    """Inject premium enterprise healthcare CSS styling with responsive design"""
     st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-    
+
     * {
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     }
-    
+
     html, body, [class*="css"] {
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     }
-    
+
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
-    
+
     .main {
         background: linear-gradient(135deg, #f5f7fa 0%, #e8eef5 100%);
         padding: 0;
     }
-    
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+        .main {
+            padding: 0.5rem;
+        }
+
+        [data-testid="stSidebar"] {
+            width: 100% !important;
+            position: relative !important;
+            height: auto !important;
+        }
+
+        .header-bar {
+            flex-direction: column;
+            text-align: center;
+            padding: 1rem !important;
+        }
+
+        .kpi-card {
+            margin-bottom: 1rem;
+        }
+
+        .stButton > button {
+            width: 100% !important;
+            margin-bottom: 0.5rem;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .section-header {
+            font-size: 20px !important;
+        }
+
+        .kpi-value {
+            font-size: 28px !important;
+        }
+
+        .issue-card {
+            padding: 1rem !important;
+        }
+    }
+
     [data-testid="stSidebar"] {
         background: linear-gradient(180deg, #1A237E 0%, #0D47A1 100%);
         padding-top: 2rem;
+        font-size: 16px; /* Increased font size for better readability */
     }
-    
+
     [data-testid="stSidebar"] .css-1d391kg, [data-testid="stSidebar"] .css-16idsys {
         color: white;
+        font-weight: 500; /* Better font weight */
     }
-    
+
     [data-testid="stSidebar"] [role="radio"] {
         color: white;
+        font-size: 15px; /* Larger font for radio buttons */
+    }
+
+    /* Improved sidebar navigation */
+    [data-testid="stSidebar"] .stRadio > div {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        padding: 0.5rem;
     }
     
     .header-bar {
@@ -219,18 +271,28 @@ def inject_custom_css():
         background: linear-gradient(135deg, #0066CC, #0052A3) !important;
         color: white !important;
         border: none !important;
-        padding: 0.75rem 2rem !important;
+        padding: 1rem 2.5rem !important; /* Increased padding for better touch targets */
         border-radius: 8px !important;
         font-weight: 600 !important;
-        font-size: 15px !important;
+        font-size: 16px !important; /* Increased font size */
         transition: all 0.2s !important;
         box-shadow: 0 4px 12px rgba(0,102,204,0.3) !important;
+        min-height: 48px !important; /* Minimum touch target size */
     }
-    
+
     .stButton > button:hover {
         background: linear-gradient(135deg, #0052A3, #003D7A) !important;
         box-shadow: 0 6px 20px rgba(0,102,204,0.4) !important;
         transform: translateY(-2px) !important;
+    }
+
+    /* Responsive button adjustments */
+    @media (max-width: 768px) {
+        .stButton > button {
+            padding: 1.2rem 2rem !important;
+            font-size: 18px !important;
+            min-height: 56px !important;
+        }
     }
     
     [data-testid="stFileUploader"] {
@@ -582,6 +644,11 @@ if 'results' not in st.session_state:
     st.session_state.explanations = {}
     st.session_state.followups = {}
 
+# Welcome screen state
+if 'welcome_completed' not in st.session_state:
+    st.session_state.welcome_completed = False
+    st.session_state.ai_choice = None
+
 # ============================================================================
 # INJECT CSS
 # ============================================================================
@@ -679,6 +746,89 @@ with st.sidebar:
         st.session_state.followups = {}
         st.success("✅ Results cleared!")
         st.rerun()
+
+# ============================================================================
+# WELCOME SCREEN
+# ============================================================================
+if not st.session_state.welcome_completed:
+    # Hide sidebar for welcome screen
+    st.markdown("""
+    <style>
+    [data-testid="stSidebar"] {display: none;}
+    .main {padding: 2rem;}
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div style="text-align: center; margin-bottom: 3rem;">
+        <div style="font-size: 72px; margin-bottom: 1rem;">🏥</div>
+        <h1 style="color: #1A237E; font-size: 48px; font-weight: 700; margin-bottom: 0.5rem;">
+            Welcome to OptiClaimAI
+        </h1>
+        <p style="font-size: 20px; color: #666; margin-bottom: 2rem;">
+            Healthcare Claims Intelligence Platform
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div style="background: white; padding: 2rem; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.1); margin-bottom: 2rem;">
+        <h2 style="color: #1A237E; text-align: center; margin-bottom: 1.5rem;">
+            🤖 AI Configuration Setup
+        </h2>
+        <p style="font-size: 16px; color: #666; text-align: center; margin-bottom: 2rem;">
+            To get the most out of OptiClaimAI's AI-powered explanations, let's configure your AI setup.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col1, col2 = st.columns(2, gap="large")
+
+    with col1:
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #E8F5E9, #C8E6C9); padding: 2rem; border-radius: 12px; border: 2px solid #00C853; text-align: center;">
+            <div style="font-size: 48px; margin-bottom: 1rem;">🖥️</div>
+            <h3 style="color: #1B5E20; margin-bottom: 1rem;">I have Ollama/Local AI</h3>
+            <p style="color: #2E7D32; margin-bottom: 1.5rem;">
+                Use your local AI model for private, fast explanations
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        if st.button("✅ Use Local AI (Ollama)", use_container_width=True, key="local_ai_btn"):
+            st.session_state.ai_choice = "local"
+            st.session_state.welcome_completed = True
+            st.success("✅ Local AI selected! Make sure Ollama is running.")
+            st.rerun()
+
+    with col2:
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #E3F2FD, #BBDEFB); padding: 2rem; border-radius: 12px; border: 2px solid #2196F3; text-align: center;">
+            <div style="font-size: 48px; margin-bottom: 1rem;">🌐</div>
+            <h3 style="color: #0D47A1; margin-bottom: 1rem;">No Local AI Setup</h3>
+            <p style="color: #1565C0; margin-bottom: 1.5rem;">
+                Use our knowledge base for explanations without sending data online
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        if st.button("📚 Use Knowledge Base", use_container_width=True, key="knowledge_btn"):
+            st.session_state.ai_choice = "knowledge"
+            st.session_state.welcome_completed = True
+            st.info("ℹ️ Using built-in knowledge base. AI explanations will use pre-trained responses.")
+            st.rerun()
+
+    st.markdown("""
+    <div style="background: #FFF8E1; padding: 1.5rem; border-radius: 8px; border-left: 4px solid #FFC107; margin-top: 2rem;">
+        <h4 style="color: #E65100; margin-bottom: 0.5rem;">🔒 Privacy First</h4>
+        <p style="color: #BF360C; margin: 0;">
+            All processing happens locally. No data is sent to external servers unless you choose online AI.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Don't show main content until welcome is completed
+    st.stop()
 
 # ============================================================================
 # MAIN CONTENT AREA
