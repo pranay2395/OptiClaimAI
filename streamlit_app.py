@@ -97,7 +97,7 @@ def parse_uploaded_file(file_content: str, file_name: str) -> Optional[Dict]:
         st.error(f"❌ Parsing Error: {str(e)}")
         return None
 
-def validate_claims(parsed_data: Dict) -> Optional[Dict]:
+def validate_claims(parsed_data: Dict) -> Optional[List[Dict]]:
     """Validate parsed claims"""
     try:
         with st.spinner('🔍 Validating claims...'):
@@ -118,7 +118,7 @@ def validate_claims(parsed_data: Dict) -> Optional[Dict]:
         st.error(f"❌ Validation Error: {str(e)}")
         return None
 
-def generate_analytics(parsed_data: Dict, validation_results: Dict) -> Optional[Dict]:
+def generate_analytics(parsed_data: Dict, validation_results: List[Dict]) -> Optional[Dict]:
     """Generate analytics from claims data"""
     try:
         with st.spinner('📊 Generating analytics...'):
