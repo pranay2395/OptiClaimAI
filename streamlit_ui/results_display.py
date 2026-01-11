@@ -1,0 +1,129 @@
+"""
+Display validation results with AI-powered explanations
+"""
+
+import streamlit as st
+from model.claim_schema import Claim
+from engine.ai_engine import OllamaEngine
+from engine.output_formatter import OutputFormatter
+
+
+def render_results(claim: Claim, validation_result: dict):
+    """Display claim validation results with AI explanations"""
+    
+    st.success("✅ Claim Processed Successfully")
+    st.divider()
+    
+    # Claim Summary
+    st.subheader("📊 Claim Summary")
+    st.markdown(OutputFormatter.format_claim_summary(claim))
+    
+    st.divider()
+    
+    # Denial Risk at top
+    st.subheader("📈 Denial Risk Assessment")
+    
+    risk_data = OutputFormatter.format_denial_risk(
+        validation_result['denial_risk_score'],
+        validation_result['denial_risk_level'],
+        validation_result['issue_count']
+    )
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Risk Level", f"{risk_data['color']} {risk_data['level']}")
+    with col2:
+        st.metric("Risk Score", f"{risk_data['score']}%")
+    with col3:
+        st.metric("Valid for Submit", "✅ YES" if validation_result['is_valid'] else "❌ NO")
+    
+    st.info(risk_data['recommendation'])
+    
+    st.divider()
+    
+    # Issues
+    st.subheader("⚠️ Validation Issues")
+    
+    if validation_result['issue_count'] == 0:
+        st.success("✨ No issues found! This claim is ready to submit.")
+    else:
+        issues_grouped = OutputFormatter.format_issues_for_display(validation_result['issues'])
+        ai_engine = OllamaEngine()
+        
+        for severity in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']:
+            if issues_grouped[severity]:
+                # Get severity icon
+                icon_map = {
+                    'CRITICAL': '🔴',
+                    'HIGH': '🟠',
+                    'MEDIUM': '🟡',
+                    'LOW': '🟢',
+                }
+                icon = icon_map.get(severity, '⚪')
+                
+                with st.expander(
+                    f"{icon} {severity} ({len(issues_grouped[severity])} issue(s))",
+                    expanded=(severity in ['CRITICAL', 'HIGH'])
+                ):
+                    for idx, issue in enumerate(issues_grouped[severity]):
+                        # Issue message
+                        st.markdown(f"**{issue.get('message', 'Unknown issue')}**")
+                        
+                        if issue.get('field'):
+                            st.caption(f"Field: `{issue['field']}`")
+                        
+                        # AI Explanation button
+                        col1, col2 = st.columns([3, 1])
+                        with col2:
+                            if st.button(
+                                "💡 Explain",
+                                key=f"explain_{severity}_{idx}",
+                                help="Get AI explanation for this issue"
+                            ):
+                                with st.spinner("Getting AI explanation..."):
+                                    explanation = ai_engine.explain_issue(
+                                        issue.get('code', 'UNKNOWN'),
+                                        issue.get('message', ''),
+                                        OutputFormatter.format_claim_summary(claim)
+                                    )
+                                    if explanation:
+                                        st.info(f"**AI Explanation:** {explanation}")
+                                    else:
+                                        st.caption("*(AI explanation unavailable - Ollama not running)*")
+                        
+                        st.divider()
+    
+    # Get fix guidance
+    if validation_result['issue_count'] > 0:
+        st.divider()
+        if st.button("💡 Get AI Guidance on Fixing Issues", type="secondary", use_container_width=True):
+            ai_engine = OllamaEngine()
+            with st.spinner("Generating fix guidance..."):
+                guidance = ai_engine.suggest_fixes(
+                    validation_result['issues'],
+                    OutputFormatter.format_claim_summary(claim)
+                )
+                if guidance:
+                    st.success("**Fix Guidance:**")
+                    st.markdown(guidance)
+                else:
+                    st.info("*(AI guidance unavailable - Ollama not running)*")
+    
+    st.divider()
+    
+    # Export options
+    st.subheader("📥 Export & Actions")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if st.button("📋 View Full Validation Rules", use_container_width=True):
+            st.json(validation_result)
+    
+    with col2:
+        if st.button("📄 Generate 837 Preview (Coming Soon)", use_container_width=True):
+            st.info("EDI 837 generation will be available in next version")
+    
+    with col3:
+        if st.button("💾 Save Claim", use_container_width=True):
+            st.success("Claim saved to session!")
