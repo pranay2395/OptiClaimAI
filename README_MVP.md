@@ -430,7 +430,45 @@ This is an **open-source MVP**. Potential monetization:
 
 ---
 
-## 🙏 Acknowledgments
+## � DEPLOYMENT (Ready Now)
+
+### Status: ✅ PRODUCTION READY
+
+All code tested, committed, and ready to deploy to Streamlit Cloud.
+
+### Deploy in 2 Minutes
+
+1. Visit https://share.streamlit.io/
+2. Click "Create app"
+3. Select GitHub repo: `pranay2395/OptiClaimAI`
+4. Set main file: `streamlit_app_v2.py`
+5. Click "Deploy"
+
+**That's it.** The app will be live in 2-3 minutes.
+
+### Test After Deployment
+
+Once live:
+- [ ] Test form input (fill 12 fields, submit)
+- [ ] Test text parsing (paste description, parse)
+- [ ] Test EDI upload (upload .837 file)
+- [ ] Check AI status (shows unavailable - expected on cloud)
+- [ ] Verify validation works (rules run deterministically)
+
+### What Works on Cloud
+
+✅ Form input  
+✅ Text parsing  
+✅ EDI upload  
+✅ Rule validation (40+ checks)  
+✅ Denial risk scoring  
+⚠️ AI explanations disabled (Ollama local only)  
+
+The app gracefully disables AI if Ollama unavailable - all deterministic validation still works perfectly.
+
+---
+
+## �🙏 Acknowledgments
 
 - Built with Streamlit
 - Powered by Ollama for local AI
