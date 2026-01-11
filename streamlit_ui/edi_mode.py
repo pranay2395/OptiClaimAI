@@ -4,7 +4,7 @@ EDI file upload and processing component
 
 import streamlit as st
 from model.claim_builder import ClaimBuilder
-from engine.rules_engine import ClaimRulesEngine
+from engine.rules_engine_v2 import ClaimRulesEngine
 from streamlit_ui.results_display import render_results
 
 
