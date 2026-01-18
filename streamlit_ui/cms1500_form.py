@@ -178,6 +178,7 @@ def render_cms1500_form() -> dict:
                     charges=charges,
                     units=units,
                     diagnosis_pointer=diag_pointer,
+                    emg=False,
                 ))
             
             st.divider()
