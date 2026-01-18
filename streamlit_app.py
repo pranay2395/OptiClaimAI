@@ -1,5 +1,11 @@
+"""
+OptiClaimAI - Production Application
+Unified interface for all claim input modes
+"""
+
 import streamlit as st
 import pandas as pd
+import json
 from typing import Dict, List, Optional
 import sys
 from pathlib import Path
@@ -7,29 +13,54 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
+# Core imports
 from engine.parser import EDI837Parser
 from engine.validator import ClaimValidator
 from engine.analytics import ClaimsAnalytics
 
+# Multi-mode UI imports
+try:
+    from streamlit_ui.form_input import render_form_mode
+    from streamlit_ui.text_input import render_text_mode
+    from streamlit_ui.edi_mode import render_edi_mode
+    from streamlit_ui.cms1500_form_v3 import render_cms1500_form
+    from streamlit_ui.results_display import render_results
+except ImportError:
+    render_form_mode = None
+    render_text_mode = None
+    render_edi_mode = None
+    render_cms1500_form = None
+    render_results = None
+
+# Model and engine imports
+try:
+    from model.cms1500_schema import CMS1500
+    from engine.validate_cms1500 import validate_cms1500, build_cms1500_object
+    from engine.edi_837p_generator import cms1500_to_edi837p
+    from engine.nppes_lookup import get_nppes_lookup
+    from engine.ai_engine_factory import is_ai_enabled, get_ai_engine
+except ImportError:
+    pass
+
 # Page configuration
 st.set_page_config(
-    page_title="OptiClaimAI - 837 Claims Validator",
+    page_title="OptiClaimAI - Healthcare Claims Intelligence",
     page_icon="🏥",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for better UI
+# Custom CSS
 st.markdown("""
-    <style>
-    .main-header {
+<style>
+    .main-title {
         font-size: 2.5rem;
         font-weight: 700;
         color: #1f77b4;
         margin-bottom: 0.5rem;
     }
-    .sub-header {
-        font-size: 1.2rem;
+    .subtitle {
+        font-size: 1.1rem;
         color: #666;
         margin-bottom: 2rem;
     }
@@ -40,32 +71,14 @@ st.markdown("""
         border-left: 4px solid #28a745;
         margin: 1rem 0;
     }
-    .error-box {
-        padding: 1rem;
-        border-radius: 0.5rem;
-        background-color: #f8d7da;
-        border-left: 4px solid #dc3545;
-        margin: 1rem 0;
-    }
-    .warning-box {
-        padding: 1rem;
-        border-radius: 0.5rem;
-        background-color: #fff3cd;
-        border-left: 4px solid #ffc107;
-        margin: 1rem 0;
-    }
-    .metric-card {
-        background-color: #f8f9fa;
-        padding: 1.5rem;
-        border-radius: 0.5rem;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    </style>
+</style>
 """, unsafe_allow_html=True)
 
 # Initialize session state
-def initialize_session_state():
+def init_session_state():
     """Initialize all session state variables"""
+    if 'mode' not in st.session_state:
+        st.session_state.mode = None
     if 'parsed_claims' not in st.session_state:
         st.session_state.parsed_claims = None
     if 'validation_results' not in st.session_state:
@@ -78,6 +91,14 @@ def initialize_session_state():
         st.session_state.file_name = None
     if 'processing_complete' not in st.session_state:
         st.session_state.processing_complete = False
+    if 'claim' not in st.session_state:
+        st.session_state.claim = None
+    if 'validation_result' not in st.session_state:
+        st.session_state.validation_result = None
+
+init_session_state()
+
+# ============= HELPER FUNCTIONS =============
 
 def parse_uploaded_file(file_content: str, file_name: str) -> Optional[Dict]:
     """Parse uploaded EDI 837 file"""
@@ -133,21 +154,6 @@ def generate_analytics(parsed_data: Dict, validation_results: List[Dict]) -> Opt
     except Exception as e:
         st.error(f"❌ Analytics Error: {str(e)}")
         return None
-
-def render_header():
-    """Render application header"""
-    st.markdown('<div class="main-header">🏥 OptiClaimAI</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-header">AI-Powered Pre-Submission Claims Validation for 837 EDI Files</div>', unsafe_allow_html=True)
-
-    # PHI Warning
-    st.markdown("""
-        <div class="warning-box">
-            <strong>⚠️ IMPORTANT:</strong>
-            This is a demo application.
-            Do NOT upload files containing real Protected Health Information (PHI).
-            Use synthetic or de-identified data only.
-        </div>
-    """, unsafe_allow_html=True)
 
 def render_upload_tab():
     """Render file upload tab"""
