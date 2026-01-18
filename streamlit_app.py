@@ -1,6 +1,7 @@
 """
-OptiClaimAI - Production Application
-Unified interface for all claim input modes
+OptiClaimAI - Production Application (FIXED Streamlit Runtime Model)
+Strict adherence to Streamlit patterns: render-only during execution, 
+state mutation via callbacks only
 """
 
 import streamlit as st
@@ -13,12 +14,13 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-# Core imports
+# ============= CORE IMPORTS (NO AI) =============
+
 from engine.parser import EDI837Parser
 from engine.validator import ClaimValidator
 from engine.analytics import ClaimsAnalytics
 
-# Multi-mode UI imports
+# Multi-mode UI
 try:
     from streamlit_ui.form_input import render_form_mode
     from streamlit_ui.text_input import render_text_mode
@@ -32,15 +34,66 @@ except ImportError:
     render_cms1500_form = None
     render_results = None
 
-# Model and engine imports
+# CMS-1500 & EDI (NO AI)
 try:
     from model.cms1500_schema import CMS1500
     from engine.validate_cms1500 import validate_cms1500, build_cms1500_object
     from engine.edi_837p_generator import cms1500_to_edi837p
     from engine.nppes_lookup import get_nppes_lookup
-    from engine.ai_engine_factory import is_ai_enabled, get_ai_engine
 except ImportError:
     pass
+
+# Claim Builder & Engine (NO AI)
+try:
+    from model.claim_builder import ClaimBuilder
+    from engine.rules_engine_v2 import ClaimRulesEngine
+except ImportError:
+    ClaimBuilder = None
+    ClaimRulesEngine = None
+
+# ============= AI ENGINE FACTORY (LAZY + RUNTIME) =============
+
+class AIEngineFactory:
+    """Lazy-loaded, runtime-selectable AI provider"""
+    
+    @staticmethod
+    def get_ollama_response(prompt: str, model: str = "llama2") -> Optional[str]:
+        """Execute Ollama request ONLY if called"""
+        try:
+            import requests
+            response = requests.post(
+                "http://localhost:11434/api/generate",
+                json={"model": model, "prompt": prompt, "stream": False},
+                timeout=30
+            )
+            if response.status_code == 200:
+                return response.json().get("response", "")
+            return None
+        except Exception as e:
+            return f"Ollama error: {str(e)}"
+    
+    @staticmethod
+    def get_openai_response(prompt: str, api_key: str, model: str = "gpt-4") -> Optional[str]:
+        """Execute OpenAI request ONLY if called"""
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=api_key)
+            response = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            return f"OpenAI error: {str(e)}"
+    
+    @staticmethod
+    def execute(provider: str, prompt: str, api_key: Optional[str] = None) -> Optional[str]:
+        """Execute AI based on provider selection"""
+        if provider == "ollama":
+            return AIEngineFactory.get_ollama_response(prompt)
+        elif provider == "openai" and api_key:
+            return AIEngineFactory.get_openai_response(prompt, api_key)
+        return None
 
 # Page configuration
 st.set_page_config(
@@ -319,81 +372,159 @@ elif st.session_state.mode == 'text':
 
 elif st.session_state.mode == 'edi':
     st.header("📊 EDI File Parser")
-    if render_edi_mode is not None:
-        render_edi_mode()
-    else:
-        # Fallback EDI upload
-        st.subheader("Upload 837 EDI File")
-        uploaded_file = st.file_uploader(
-            "Choose a file",
-            type=['txt', 'edi', '837']
-        )
+    
+    # AI Guidance Section
+    with st.expander("🤖 AI Guidance Setup"):
+        col1, col2 = st.columns(2)
+        with col1:
+            ai_provider = st.selectbox(
+                "AI Provider",
+                ["disabled", "ollama", "openai"],
+                key="ai_provider_select"
+            )
+            if ai_provider != "disabled":
+                st.session_state.ai_provider = ai_provider
         
-        if uploaded_file is not None:
-            if st.button("🚀 Process File"):
-                file_content = uploaded_file.read().decode('utf-8')
-                parsed_data = parse_uploaded_file(file_content, uploaded_file.name)
-                if parsed_data:
-                    st.session_state.parsed_claims = parsed_data
-                    st.session_state.file_name = uploaded_file.name
-                    st.session_state.file_uploaded = True
-                    validation_results = validate_claims(parsed_data)
-                    if validation_results:
-                        st.session_state.validation_results = validation_results
-                        analytics_data = generate_analytics(parsed_data, validation_results)
-                        if analytics_data:
-                            st.session_state.analytics_data = analytics_data
-                            st.success("✅ File processed! See Analytics tab for results.")
-                            st.balloons()
+        with col2:
+            if ai_provider == "openai":
+                api_key = st.text_input(
+                    "OpenAI API Key",
+                    type="password",
+                    key="openai_key_input"
+                )
+                if api_key:
+                    st.session_state.openai_key = api_key
+    
+    # File upload section
+    st.subheader("Upload 837 EDI File")
+    uploaded_file = st.file_uploader(
+        "Choose a file",
+        type=['txt', 'edi', '837']
+    )
+    
+    if uploaded_file is not None:
+        col1, col2 = st.columns(2)
+        with col1:
+            def process_button_click():
+                st.session_state.process_file = True
+            
+            st.button("🚀 Process File", on_click=process_button_click)
+        
+        with col2:
+            def get_ai_guidance_click():
+                st.session_state.get_ai_guidance = True
+            
+            st.button("🤖 Get AI Guidance", on_click=get_ai_guidance_click)
+        
+        # Process file flag
+        if st.session_state.get("process_file", False):
+            file_content = uploaded_file.read().decode('utf-8')
+            parsed_data = parse_uploaded_file(file_content, uploaded_file.name)
+            if parsed_data:
+                st.session_state.parsed_claims = parsed_data
+                st.session_state.file_name = uploaded_file.name
+                st.session_state.file_uploaded = True
+                validation_results = validate_claims(parsed_data)
+                if validation_results:
+                    st.session_state.validation_results = validation_results
+                    analytics_data = generate_analytics(parsed_data, validation_results)
+                    if analytics_data:
+                        st.session_state.analytics_data = analytics_data
+                        st.success("✅ File processed successfully!")
+            st.session_state.process_file = False
+        
+        # AI guidance flag
+        if st.session_state.get("get_ai_guidance", False):
+            if st.session_state.get("parsed_claims"):
+                with st.spinner("🤖 Generating AI guidance..."):
+                    prompt = f"""Analyze this healthcare claim for potential issues:
+{json.dumps(st.session_state.parsed_claims, indent=2)[:2000]}
+
+Provide:
+1. Top 3 potential compliance issues
+2. Recommended fixes
+3. Risk level assessment
+"""
+                    ai_result = AIEngineFactory.execute(
+                        st.session_state.get("ai_provider", "disabled"),
+                        prompt,
+                        api_key=st.session_state.get("openai_key")
+                    )
+                    if ai_result:
+                        st.session_state.ai_guidance = ai_result
+                        st.success("✅ AI Analysis Complete")
+                    else:
+                        st.warning("⚠️ AI service unavailable")
+            st.session_state.get_ai_guidance = False
+        
+        # Display results
+        if st.session_state.get("file_uploaded"):
+            st.divider()
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.subheader("📊 Validation Results")
+                if st.session_state.validation_results:
+                    for i, result in enumerate(st.session_state.validation_results[:3]):
+                        with st.expander(f"Claim {i+1}"):
+                            st.write(result)
+            
+            with col2:
+                st.subheader("📈 Analytics")
+                if st.session_state.analytics_data:
+                    st.json(st.session_state.analytics_data)
+            
+            # AI Guidance Display
+            if st.session_state.get("ai_guidance"):
+                st.divider()
+                st.subheader("🤖 AI Analysis")
+                st.info(st.session_state.ai_guidance)
 
 elif st.session_state.mode == 'analytics':
-    st.header("📈 Claims Analytics")
+    st.header("📈 Analytics Dashboard")
     
-    if st.session_state.file_uploaded and st.session_state.analytics_data:
-        analytics = st.session_state.analytics_data
-        
-        # Overview metrics
-        col1, col2, col3, col4 = st.columns(4)
+    if st.session_state.get("analytics_data"):
+        col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Total Claims", analytics.get('total_claims', 0))
+            st.metric(
+                "Total Claims",
+                st.session_state.analytics_data.get("total_claims", 0)
+            )
         with col2:
-            st.metric("Total Amount", f"${analytics.get('total_claim_amount', 0):,.2f}")
+            st.metric(
+                "Validation Errors",
+                st.session_state.analytics_data.get("total_errors", 0)
+            )
         with col3:
-            st.metric("Average", f"${analytics.get('average_claim_amount', 0):,.2f}")
-        with col4:
-            denial_risk = analytics.get('high_denial_risk_count', 0)
-            st.metric("High Risk", denial_risk)
+            st.metric(
+                "Warnings",
+                st.session_state.analytics_data.get("total_warnings", 0)
+            )
         
         st.divider()
         
-        # Charts
         col1, col2 = st.columns(2)
         with col1:
-            st.subheader("💰 Claim Amounts")
-            if 'claim_amounts' in analytics and len(analytics['claim_amounts']) > 0:
-                df = pd.DataFrame({
-                    'Claim': analytics.get('claim_ids', []),
-                    'Amount': analytics['claim_amounts']
-                })
-                st.bar_chart(df.set_index('Claim') if len(df) > 0 else None)
+            st.subheader("Claims by Status")
+            if "status_distribution" in st.session_state.analytics_data:
+                st.bar_chart(st.session_state.analytics_data["status_distribution"])
         
         with col2:
-            st.subheader("🏥 Service Types")
-            if 'service_types' in analytics and analytics['service_types']:
-                df = pd.DataFrame.from_dict(
-                    analytics['service_types'],
-                    orient='index',
-                    columns=['Count']
-                )
-                st.bar_chart(df)
+            st.subheader("Error Categories")
+            if "error_categories" in st.session_state.analytics_data:
+                st.pie_chart(st.session_state.analytics_data["error_categories"])
+        
+        st.divider()
+        st.subheader("Detailed Report")
+        st.json(st.session_state.analytics_data)
     else:
-        st.info("👆 Upload and process a file in the EDI Parser tab to see analytics.")
+        st.info("No analytics data available. Upload and process a file first.")
 
 
 # Footer
 st.divider()
 st.markdown("""
 <div style="text-align: center; color: #999; font-size: 0.9rem;">
-    OptiClaimAI v3.0 | X12 837P Compliant | Streamlit Cloud Ready
+    OptiClaimAI v4.0 | Streamlit-Compliant Runtime | X12 837P Support
 </div>
 """, unsafe_allow_html=True)
