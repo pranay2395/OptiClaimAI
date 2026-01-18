@@ -8,9 +8,13 @@ from streamlit_ui.form_input import render_form_mode
 from streamlit_ui.text_input import render_text_mode
 from streamlit_ui.results_display import render_results
 from streamlit_ui.edi_mode import render_edi_mode
+from streamlit_ui.cms1500_form import render_cms1500_form
 from model.claim_builder import ClaimBuilder
+from model.cms1500_schema import CMS1500
 from engine.rules_engine_v2 import ClaimRulesEngine
 from engine.ai_engine import OllamaEngine
+from engine.edi_837p_generator import cms1500_to_edi837p
+import json
 import logging
 
 logger = logging.getLogger(__name__)
@@ -67,11 +71,21 @@ st.divider()
 if st.session_state.mode is None:
     st.markdown("### How do you want to submit your claim?")
     
-    col1, col2, col3 = st.columns(3, gap="large")
+    col1, col2, col3, col4 = st.columns(4, gap="large")
     
     with col1:
         if st.button(
-            "📋 **Use Form**\n\nStep-by-step guided form\nfor claim entry",
+            "📋 **CMS-1500**\n\nComplete official form\nwith all 33 boxes",
+            use_container_width=True,
+            key="btn_cms1500",
+            help="Full CMS-1500 form with EDI generation"
+        ):
+            st.session_state.mode = 'cms1500'
+            st.rerun()
+    
+    with col2:
+        if st.button(
+            "📋 **Use Form**\n\nStep-by-step guided form\nfor quick entry",
             use_container_width=True,
             key="btn_form",
             help="Fill out a structured form with guided fields"
@@ -79,7 +93,7 @@ if st.session_state.mode is None:
             st.session_state.mode = 'form'
             st.rerun()
     
-    with col2:
+    with col3:
         if st.button(
             "📝 **Describe It**\n\nNatural language\nclaim entry",
             use_container_width=True,
@@ -89,7 +103,7 @@ if st.session_state.mode is None:
             st.session_state.mode = 'text'
             st.rerun()
     
-    with col3:
+    with col4:
         if st.button(
             "⬆️ **Upload EDI**\n\nAdvanced mode\n837 file upload",
             use_container_width=True,
@@ -100,6 +114,48 @@ if st.session_state.mode is None:
             st.rerun()
 
 # Mode handlers
+elif st.session_state.mode == 'cms1500':
+    cms1500_data = render_cms1500_form()
+    if cms1500_data:
+        try:
+            # Generate EDI 837P from CMS-1500
+            edi_output = cms1500_to_edi837p(CMS1500(**cms1500_data))
+            
+            st.success("✅ CMS-1500 form successfully converted to X12 837P EDI!")
+            
+            st.subheader("📋 CMS-1500 Summary")
+            st.json(cms1500_data)
+            
+            st.subheader("📄 X12 837P EDI Output")
+            st.text(edi_output)
+            
+            # Download buttons
+            col1, col2 = st.columns(2)
+            with col1:
+                st.download_button(
+                    label="📥 Download EDI File",
+                    data=edi_output,
+                    file_name="claim.837",
+                    mime="text/plain"
+                )
+            with col2:
+                st.download_button(
+                    label="📥 Download JSON",
+                    data=json.dumps(cms1500_data, indent=2, default=str),
+                    file_name="claim.json",
+                    mime="application/json"
+                )
+            
+            # Back button
+            st.divider()
+            if st.button("← Back to Input Mode", use_container_width=True):
+                st.session_state.mode = None
+                st.rerun()
+        
+        except Exception as e:
+            st.error(f"❌ Error converting to EDI: {str(e)}")
+            st.exception(e)
+
 elif st.session_state.mode == 'form':
     form_data = render_form_mode()
     if form_data:
