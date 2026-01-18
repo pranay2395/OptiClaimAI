@@ -155,323 +155,245 @@ def generate_analytics(parsed_data: Dict, validation_results: List[Dict]) -> Opt
         st.error(f"❌ Analytics Error: {str(e)}")
         return None
 
-def render_upload_tab():
-    """Render file upload tab"""
-    st.header("📁 File Upload")
+# ============= MAIN APPLICATION =============
 
-    col1, col2 = st.columns([2, 1])
+# Header
+st.markdown("""
+<div style="text-align: center; margin-bottom: 2rem;">
+    <h1 style="color: #1f77b4;">🏥 OptiClaimAI</h1>
+    <p style="color: #666; font-size: 1.1rem;">Healthcare Claims Intelligence Platform</p>
+</div>
+""", unsafe_allow_html=True)
 
-    with col1:
-        uploaded_file = st.file_uploader(
-            "Upload 837 EDI File",
-            type=['txt', 'edi', '837'],
-            help="Upload a standard 837 Professional (837P) EDI file"
-        )
+st.warning("⚠️ **Demo Mode**: Do NOT submit real patient data. Use synthetic/de-identified data only.")
+st.divider()
 
-        if uploaded_file is not None:
-            file_content = uploaded_file.read().decode('utf-8')
-
-            if st.button("🚀 Process File", type="primary", use_container_width=True):
-                # Reset processing state
-                st.session_state.processing_complete = False
-
-                # Step 1: Parse
-                parsed_data = parse_uploaded_file(file_content, uploaded_file.name)
-                if parsed_data is None:
-                    return
-
-                st.session_state.parsed_claims = parsed_data
-                st.session_state.file_name = uploaded_file.name
-                st.session_state.file_uploaded = True
-
-                # Step 2: Validate
-                validation_results = validate_claims(parsed_data)
-                if validation_results is None:
-                    return
-
-                st.session_state.validation_results = validation_results
-
-                # Step 3: Generate Analytics
-                analytics_data = generate_analytics(parsed_data, validation_results)
-                if analytics_data is None:
-                    return
-
-                st.session_state.analytics_data = analytics_data
-                st.session_state.processing_complete = True
-
-                # Success message
-                st.markdown("""
-                    <div class="success-box">
-                        <h4>✅ Processing Complete!</h4>
-                        <p>Your file has been successfully processed.
-                        Navigate to the <strong>Validation</strong> or <strong>Analytics</strong>
-                        tabs to view results.</p>
-                    </div>
-                """, unsafe_allow_html=True)
-
-                st.balloons()
-
-    with col2:
-        st.info("""
-            **Supported Format:**
-            - 837 Professional (837P)
-            - Standard EDI X12 format
-            - Version 5010
-
-            **Sample Files:**
-            Check the `data/sample_837/` folder for examples
-        """)
-
-    # Show current file status
-    if st.session_state.file_uploaded:
-        st.divider()
-        st.subheader("📄 Current File Status")
-
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("File Name", st.session_state.file_name or "None")
-        with col2:
-            claims_count = len(st.session_state.parsed_claims.get('claims', [])) if st.session_state.parsed_claims else 0
-            st.metric("Claims Found", claims_count)
-        with col3:
-            status = "✅ Processed" if st.session_state.processing_complete else "⏳ Pending"
-            st.metric("Status", status)
-
-def render_validation_tab():
-    """Render validation results tab"""
-    st.header("🔍 Validation Results")
-
-    if not st.session_state.file_uploaded or st.session_state.validation_results is None:
-        st.info("👆 Please upload and process a file first in the **Upload** tab")
-        return
-
-    validation_results = st.session_state.validation_results
-
-    # Summary metrics
-    st.subheader("📊 Validation Summary")
-    col1, col2, col3, col4 = st.columns(4)
-
-    total_claims = len(validation_results)
-    total_errors = sum(len(r.get('errors', [])) for r in validation_results)
-    total_warnings = sum(len(r.get('warnings', [])) for r in validation_results)
-    clean_claims = sum(1 for r in validation_results if len(r.get('errors', [])) == 0)
-
-    with col1:
-        st.metric("Total Claims", total_claims)
-    with col2:
-        st.metric("Errors", total_errors, delta=None if total_errors == 0 else "Issues Found", delta_color="inverse")
-    with col3:
-        st.metric("Warnings", total_warnings)
-    with col4:
-        st.metric("Clean Claims", clean_claims)
-
+# Sidebar
+with st.sidebar:
+    st.header("⚙️ Navigation")
+    
+    mode_select = st.radio(
+        "Select Input Mode:",
+        options=["📋 CMS-1500", "📝 Form", "📄 Text", "📊 EDI Parser", "📈 Analytics"],
+        key="mode_selector"
+    )
+    
+    if mode_select == "📋 CMS-1500":
+        st.session_state.mode = 'cms1500'
+    elif mode_select == "📝 Form":
+        st.session_state.mode = 'form'
+    elif mode_select == "📄 Text":
+        st.session_state.mode = 'text'
+    elif mode_select == "📊 EDI Parser":
+        st.session_state.mode = 'edi'
+    elif mode_select == "📈 Analytics":
+        st.session_state.mode = 'analytics'
+    
     st.divider()
-
-    # Detailed results per claim
-    st.subheader("🔎 Detailed Results")
-
-    for idx, result in enumerate(validation_results, 1):
-        claim_id = result.get('claim_id', f'Claim {idx}')
-        errors = result.get('errors', [])
-        warnings = result.get('warnings', [])
-
-        # Claim header
-        status_icon = "✅" if len(errors) == 0 else "❌"
-        with st.expander(f"{status_icon} {claim_id} - {len(errors)} errors, {len(warnings)} warnings"):
-
-            if len(errors) == 0 and len(warnings) == 0:
-                st.success("✅ This claim passed all validation checks")
-
-            # Errors
-            if errors:
-                st.markdown("**🔴 Errors:**")
-                for error in errors:
-                    st.error(f"• {error}")
-
-            # Warnings
-            if warnings:
-                st.markdown("**🟡 Warnings:**")
-                for warning in warnings:
-                    st.warning(f"• {warning}")
-
-            # Claim details
-            if st.checkbox(f"Show claim details for {claim_id}", key=f"details_{idx}"):
-                st.json(result.get('claim_data', {}))
-
-def render_analytics_tab():
-    """Render analytics tab - THE KEY FIX"""
-    st.header("📊 Claims Analytics")
-
-    # CRITICAL FIX: Check for analytics data in session state
-    if not st.session_state.file_uploaded or st.session_state.analytics_data is None:
-        st.info("👆 Please upload and process a file first in the **Upload** tab")
-
-        # Show sample data notice
-        st.warning("""
-            **Note:** No file has been processed yet.
-            Upload a file in the Upload tab to see analytics for your claims.
-        """)
-        return
-
-    # CRITICAL FIX: Use session state data, not default values
-    analytics = st.session_state.analytics_data
-
-    # Overview metrics
-    st.subheader("📈 Overview Metrics")
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        st.metric(
-            "Total Claims",
-            analytics.get('total_claims', 0),
-            help="Total number of claims in uploaded file"
-        )
-    with col2:
-        total_amount = analytics.get('total_claim_amount', 0)
-        st.metric(
-            "Total Amount",
-            f"${total_amount:,.2f}",
-            help="Sum of all claim amounts"
-        )
-    with col3:
-        avg_amount = analytics.get('average_claim_amount', 0)
-        st.metric(
-            "Average Amount",
-            f"${avg_amount:,.2f}",
-            help="Average claim amount"
-        )
-    with col4:
-        denial_risk = analytics.get('high_denial_risk_count', 0)
-        pct = (denial_risk / analytics.get('total_claims', 1)) * 100 if analytics.get('total_claims', 0) > 0 else 0
-        st.metric(
-            "High Denial Risk",
-            denial_risk,
-            delta=f"{pct:.1f}%",
-            delta_color="inverse"
-        )
-
+    
+    st.subheader("About")
+    st.markdown("""
+    OptiClaimAI is a healthcare claims intelligence platform that supports:
+    
+    - **CMS-1500** - Complete form with EDI generation
+    - **Form** - Guided form entry
+    - **Text** - Natural language parsing
+    - **EDI Upload** - Direct 837P file analysis
+    - **Analytics** - Claims insights
+    
+    **Technology:**
+    - X12 837P Compliant
+    - Local Processing (No Cloud)
+    - Optional AI (Ollama)
+    """)
+    
     st.divider()
+    
+    if st.button("🔄 Reset", use_container_width=True):
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.rerun()
 
-    # Distribution charts
-    col1, col2 = st.columns(2)
 
-    with col1:
-        st.subheader("💰 Claim Amount Distribution")
-        if 'claim_amounts' in analytics and len(analytics['claim_amounts']) > 0:
-            df_amounts = pd.DataFrame({
-                'Claim ID': analytics['claim_ids'],
-                'Amount': analytics['claim_amounts']
-            })
-            st.bar_chart(df_amounts.set_index('Claim ID'))
-        else:
-            st.info("No claim amount data available")
+# ============= MODE ROUTING =============
 
-    with col2:
-        st.subheader("🏥 Service Types")
-        if 'service_types' in analytics and analytics['service_types']:
-            df_services = pd.DataFrame.from_dict(
-                analytics['service_types'],
-                orient='index',
-                columns=['Count']
-            )
-            st.bar_chart(df_services)
-        else:
-            st.info("No service type data available")
-
-    st.divider()
-
-    # Denial risk analysis
-    st.subheader("⚠️ Denial Risk Analysis")
-
-    if 'denial_risks' in analytics and len(analytics['denial_risks']) > 0:
-        df_risks = pd.DataFrame(analytics['denial_risks'])
-
-        # Color code by risk level
-        def risk_color(risk):
-            if risk == 'High': return '🔴'
-            elif risk == 'Medium': return '🟡'
-            else: return '🟢'
-
-        df_risks['Status'] = df_risks['risk_level'].apply(risk_color)
-
-        st.dataframe(
-            df_risks[['Status', 'claim_id', 'risk_level', 'risk_factors', 'risk_score']],
-            use_container_width=True,
-            hide_index=True
-        )
+if st.session_state.mode is None or st.session_state.mode == 'cms1500':
+    st.header("📋 CMS-1500 Form")
+    
+    if render_cms1500_form is not None:
+        form_data = render_cms1500_form()
+        
+        if form_data is not None:
+            st.divider()
+            st.subheader("✅ Form Submitted")
+            
+            # Validate
+            try:
+                is_valid, errors, warnings = validate_cms1500(form_data)
+                
+                if errors:
+                    st.error("❌ **Validation Errors**")
+                    for error in errors:
+                        st.error(f"• {error}")
+                    st.stop()
+                
+                if warnings:
+                    st.warning("⚠️ **Warnings (non-blocking)**")
+                    for warning in warnings:
+                        st.warning(f"• {warning}")
+                
+                # Build CMS1500 object
+                cms1500 = build_cms1500_object(form_data)
+                
+                # Optional NPPES lookup
+                with st.expander("🔍 Provider Information"):
+                    if form_data.get('provider_npi'):
+                        if st.button("Look up Provider"):
+                            nppes = get_nppes_lookup()
+                            result = nppes.lookup_npi(form_data['provider_npi'])
+                            if result:
+                                st.success("Provider found!")
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    st.write(f"**Name:** {result.get('first_name')} {result.get('last_name')}")
+                                    st.write(f"**Specialty:** {result.get('specialty', 'N/A')}")
+                                with col2:
+                                    st.write(f"**Address:** {result.get('address', 'N/A')}")
+                                    st.write(f"**Phone:** {result.get('phone', 'N/A')}")
+                            else:
+                                st.info("Provider not found in NPPES")
+                
+                # EDI Generation
+                st.header("📄 X12 837P EDI Output")
+                edi_output = cms1500_to_edi837p(cms1500)
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write(f"✅ **EDI Generated ({len(edi_output)} chars)**")
+                with col2:
+                    st.write(f"**Claim:** {form_data.get('claim_number', 'N/A')}")
+                
+                # Display EDI
+                with st.expander("View Full EDI"):
+                    st.code(edi_output, language="text")
+                
+                # Downloads
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.download_button(
+                        label="📥 Download .837",
+                        data=edi_output,
+                        file_name=f"claim_{form_data.get('claim_number', 'unknown')}.837",
+                        mime="application/octet-stream"
+                    )
+                with col2:
+                    st.download_button(
+                        label="📥 Download JSON",
+                        data=json.dumps(cms1500.to_dict(), indent=2, default=str),
+                        file_name=f"claim_{form_data.get('claim_number', 'unknown')}.json",
+                        mime="application/json"
+                    )
+                with col3:
+                    if st.button("🔄 Submit Another", use_container_width=True):
+                        st.rerun()
+            
+            except Exception as e:
+                st.error(f"❌ Error: {str(e)}")
+                st.exception(e)
     else:
-        st.success("✅ No high-risk claims identified")
+        st.info("CMS-1500 form not available. Check installation.")
 
-    # Download results
-    st.divider()
-    st.subheader("📥 Export Results")
+elif st.session_state.mode == 'form':
+    st.header("📝 Guided Form Entry")
+    if render_form_mode is not None:
+        render_form_mode()
+    else:
+        st.info("Form mode not available.")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Download Analytics Report (CSV)", use_container_width=True):
-            # Create CSV export
-            csv_data = pd.DataFrame(analytics.get('denial_risks', []))
-            st.download_button(
-                "Download CSV",
-                csv_data.to_csv(index=False),
-                file_name=f"analytics_{st.session_state.file_name}.csv",
-                mime="text/csv"
-            )
+elif st.session_state.mode == 'text':
+    st.header("📄 Natural Language Entry")
+    if render_text_mode is not None:
+        render_text_mode()
+    else:
+        st.info("Text mode not available.")
 
-    with col2:
-        if st.button("Download Full JSON", use_container_width=True):
-            import json
-            st.download_button(
-                "Download JSON",
-                json.dumps(analytics, indent=2),
-                file_name=f"analytics_{st.session_state.file_name}.json",
-                mime="application/json"
-            )
+elif st.session_state.mode == 'edi':
+    st.header("📊 EDI File Parser")
+    if render_edi_mode is not None:
+        render_edi_mode()
+    else:
+        # Fallback EDI upload
+        st.subheader("Upload 837 EDI File")
+        uploaded_file = st.file_uploader(
+            "Choose a file",
+            type=['txt', 'edi', '837']
+        )
+        
+        if uploaded_file is not None:
+            if st.button("🚀 Process File"):
+                file_content = uploaded_file.read().decode('utf-8')
+                parsed_data = parse_uploaded_file(file_content, uploaded_file.name)
+                if parsed_data:
+                    st.session_state.parsed_claims = parsed_data
+                    st.session_state.file_name = uploaded_file.name
+                    st.session_state.file_uploaded = True
+                    validation_results = validate_claims(parsed_data)
+                    if validation_results:
+                        st.session_state.validation_results = validation_results
+                        analytics_data = generate_analytics(parsed_data, validation_results)
+                        if analytics_data:
+                            st.session_state.analytics_data = analytics_data
+                            st.success("✅ File processed! See Analytics tab for results.")
+                            st.balloons()
 
-def main():
-    """Main application entry point"""
-    # Initialize session state
-    initialize_session_state()
-
-    # Render header
-    render_header()
-
-    # Create tabs
-    tab1, tab2, tab3 = st.tabs(["📁 Upload", "🔍 Validation", "📊 Analytics"])
-
-    with tab1:
-        render_upload_tab()
-
-    with tab2:
-        render_validation_tab()
-
-    with tab3:
-        render_analytics_tab()
-
-    # Sidebar
-    with st.sidebar:
-        st.header("ℹ️ About")
-        st.markdown("""
-            **OptiClaimAI** helps healthcare providers validate
-            837 EDI claims before submission to reduce denials.
-
-            **Features:**
-            - Real-time EDI parsing
-            - Comprehensive validation
-            - Denial risk prediction
-            - Analytics & reporting
-        """)
-
+elif st.session_state.mode == 'analytics':
+    st.header("📈 Claims Analytics")
+    
+    if st.session_state.file_uploaded and st.session_state.analytics_data:
+        analytics = st.session_state.analytics_data
+        
+        # Overview metrics
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Claims", analytics.get('total_claims', 0))
+        with col2:
+            st.metric("Total Amount", f"${analytics.get('total_claim_amount', 0):,.2f}")
+        with col3:
+            st.metric("Average", f"${analytics.get('average_claim_amount', 0):,.2f}")
+        with col4:
+            denial_risk = analytics.get('high_denial_risk_count', 0)
+            st.metric("High Risk", denial_risk)
+        
         st.divider()
+        
+        # Charts
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("💰 Claim Amounts")
+            if 'claim_amounts' in analytics and len(analytics['claim_amounts']) > 0:
+                df = pd.DataFrame({
+                    'Claim': analytics.get('claim_ids', []),
+                    'Amount': analytics['claim_amounts']
+                })
+                st.bar_chart(df.set_index('Claim') if len(df) > 0 else None)
+        
+        with col2:
+            st.subheader("🏥 Service Types")
+            if 'service_types' in analytics and analytics['service_types']:
+                df = pd.DataFrame.from_dict(
+                    analytics['service_types'],
+                    orient='index',
+                    columns=['Count']
+                )
+                st.bar_chart(df)
+    else:
+        st.info("👆 Upload and process a file in the EDI Parser tab to see analytics.")
 
-        if st.session_state.file_uploaded:
-            st.success("✅ File Loaded")
-            if st.button("🔄 Reset Application"):
-                for key in list(st.session_state.keys()):
-                    del st.session_state[key]
-                st.rerun()
-        else:
-            st.info("📁 No file loaded")
 
-if __name__ == "__main__":
-    main()
+# Footer
+st.divider()
+st.markdown("""
+<div style="text-align: center; color: #999; font-size: 0.9rem;">
+    OptiClaimAI v3.0 | X12 837P Compliant | Streamlit Cloud Ready
+</div>
+""", unsafe_allow_html=True)
