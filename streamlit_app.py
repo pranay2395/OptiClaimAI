@@ -57,7 +57,7 @@ class AIEngineFactory:
     """Lazy-loaded, runtime-selectable AI provider"""
     
     @staticmethod
-    def get_ollama_response(prompt: str, model: str = "llama2") -> Optional[str]:
+    def get_ollama_response(prompt: str, model: str = "glm-4.6:cloud") -> Optional[str]:
         """Execute Ollama request ONLY if called"""
         try:
             import requests
@@ -68,6 +68,10 @@ class AIEngineFactory:
             )
             if response.status_code == 200:
                 return response.json().get("response", "")
+            # Handle memory errors gracefully
+            elif response.status_code == 500:
+                error_msg = response.json().get("error", "Model requires too much memory")
+                return f"Ollama: {error_msg}"
             return None
         except Exception as e:
             return f"Ollama error: {str(e)}"
