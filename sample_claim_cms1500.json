@@ -1,0 +1,92 @@
+{
+  "subscriber": {
+    "insurance_type": "Medicare"
+  },
+  "subscriber_info": {
+    "name": "Robert Johnson",
+    "dob": "1945-03-15",
+    "gender": "M",
+    "subscriber_id": "123456789A",
+    "group_name": "Medicare",
+    "group_number": ""
+  },
+  "patient_info": {
+    "first_name": "Robert",
+    "last_name": "Johnson",
+    "dob": "1945-03-15",
+    "gender": "M",
+    "relationship": "Self"
+  },
+  "provider_info": {
+    "npi": "1987654321",
+    "tax_id": "98-7654321",
+    "last_name": "Smith",
+    "first_name": "Patricia",
+    "phone": "217-555-0100"
+  },
+  "service_lines": [
+    {
+      "line_number": 1,
+      "from_date": "2026-01-10",
+      "to_date": "2026-01-10",
+      "place_of_service": "11",
+      "procedure_code": "99214",
+      "modifiers": [
+        "",
+        null,
+        null,
+        null
+      ],
+      "charges": 125.0,
+      "units": 1
+    },
+    {
+      "line_number": 2,
+      "from_date": "2026-01-10",
+      "to_date": "2026-01-10",
+      "place_of_service": "11",
+      "procedure_code": "70450",
+      "modifiers": [
+        "",
+        null,
+        null,
+        null
+      ],
+      "charges": 450.0,
+      "units": 1
+    },
+    {
+      "line_number": 3,
+      "from_date": "2026-01-10",
+      "to_date": "2026-01-10",
+      "place_of_service": "11",
+      "procedure_code": "71030",
+      "modifiers": [
+        "",
+        null,
+        null,
+        null
+      ],
+      "charges": 85.0,
+      "units": 1
+    }
+  ],
+  "diagnoses": [
+    {
+      "code": "R51.9",
+      "primary": true,
+      "sequence": 1
+    },
+    {
+      "code": "J45.901",
+      "primary": false,
+      "sequence": 2
+    }
+  ],
+  "billing_info": {
+    "total_charges": 660.0,
+    "total_paid": 0.0,
+    "balance_due": 0.0
+  },
+  "claim_number": "CLM-2026-001"
+}

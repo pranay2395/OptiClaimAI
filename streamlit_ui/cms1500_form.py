@@ -35,7 +35,7 @@ def render_cms1500_form() -> dict:
         col1, col2 = st.columns(2)
         with col1:
             subscriber_name = st.text_input("Subscriber Name *", key="sub_name")
-            subscriber_dob = st.date_input("Subscriber DOB *", key="sub_dob", format="YYYY/MM/DD")
+            subscriber_dob = st.date_input("Subscriber DOB *", key="sub_dob", format="YYYY/MM/DD", min_value=date(1860, 1, 1))
         with col2:
             subscriber_gender = st.selectbox("Gender", ["M", "F"], key="sub_gender")
             subscriber_id = st.text_input("Subscriber ID *", key="sub_id")
@@ -51,7 +51,7 @@ def render_cms1500_form() -> dict:
         col1, col2 = st.columns(2)
         with col1:
             patient_first = st.text_input("Patient First Name *", key="pat_first")
-            patient_dob = st.date_input("Patient DOB *", key="pat_dob", format="YYYY/MM/DD")
+            patient_dob = st.date_input("Patient DOB *", key="pat_dob", format="YYYY/MM/DD", min_value=date(1860, 1, 1))
         with col2:
             patient_last = st.text_input("Patient Last Name *", key="pat_last")
             patient_gender = st.selectbox("Patient Gender", ["M", "F"], key="pat_gender")

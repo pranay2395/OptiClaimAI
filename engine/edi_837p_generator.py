@@ -74,6 +74,7 @@ class EDI837PGenerator:
     def _generate_isa(self) -> str:
         """ISA - Interchange Control Header"""
         isa_elements = [
+            "ISA",  # Segment ID
             "00",  # Auth info qualifier
             "          ",  # Auth info
             "00",  # Security info qualifier
