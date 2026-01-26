@@ -1,0 +1,359 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Canonical Claim Schema",
+  "description": "Single source of truth for all healthcare claims - maps from CMS-1500, EDI 837P, and free text",
+  "type": "object",
+  "required": [
+    "patient",
+    "provider",
+    "service_lines",
+    "diagnoses"
+  ],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "description": "Claim-level metadata",
+      "properties": {
+        "claim_id": {
+          "type": "string",
+          "description": "Unique claim identifier"
+        },
+        "submission_date": {
+          "type": "string",
+          "format": "date",
+          "description": "Date claim was submitted"
+        },
+        "source": {
+          "type": "string",
+          "enum": ["cms1500_form", "edi_837p", "free_text", "guided_form"],
+          "description": "Source of claim data"
+        },
+        "version": {
+          "type": "string",
+          "default": "1.0",
+          "description": "Schema version"
+        }
+      }
+    },
+    "patient": {
+      "type": "object",
+      "description": "Patient demographic information",
+      "required": ["first_name", "last_name", "date_of_birth"],
+      "properties": {
+        "first_name": {
+          "type": "string",
+          "description": "Patient first name"
+        },
+        "last_name": {
+          "type": "string",
+          "description": "Patient last name"
+        },
+        "date_of_birth": {
+          "type": "string",
+          "format": "date",
+          "description": "Patient date of birth (YYYY-MM-DD)"
+        },
+        "gender": {
+          "type": "string",
+          "enum": ["M", "F", "U"],
+          "description": "Patient gender (M=Male, F=Female, U=Unknown)"
+        },
+        "member_id": {
+          "type": "string",
+          "description": "Member ID from insurance card"
+        },
+        "address": {
+          "$ref": "#/definitions/address"
+        },
+        "phone": {
+          "type": "string",
+          "description": "Patient phone number"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Patient email address"
+        }
+      }
+    },
+    "subscriber": {
+      "type": "object",
+      "description": "Insurance subscriber (may differ from patient)",
+      "properties": {
+        "first_name": {
+          "type": "string"
+        },
+        "last_name": {
+          "type": "string"
+        },
+        "date_of_birth": {
+          "type": "string",
+          "format": "date"
+        },
+        "gender": {
+          "type": "string",
+          "enum": ["M", "F", "U"]
+        },
+        "relationship_to_patient": {
+          "type": "string",
+          "enum": ["self", "spouse", "parent", "child", "other"],
+          "description": "Relationship of subscriber to patient"
+        },
+        "member_id": {
+          "type": "string"
+        },
+        "group_number": {
+          "type": "string",
+          "description": "Employer group number"
+        },
+        "address": {
+          "$ref": "#/definitions/address"
+        }
+      }
+    },
+    "payer": {
+      "type": "object",
+      "description": "Insurance payer information",
+      "properties": {
+        "payer_name": {
+          "type": "string",
+          "description": "Insurance company name"
+        },
+        "payer_id": {
+          "type": "string",
+          "description": "ANSI payer ID"
+        },
+        "payer_code": {
+          "type": "string",
+          "description": "Payer code (e.g., Blue Cross, Aetna)"
+        },
+        "contact_phone": {
+          "type": "string"
+        },
+        "address": {
+          "$ref": "#/definitions/address"
+        }
+      }
+    },
+    "provider": {
+      "type": "object",
+      "description": "Rendering provider (physician/clinician)",
+      "required": ["npi"],
+      "properties": {
+        "npi": {
+          "type": "string",
+          "description": "National Provider Identifier (10 digits)",
+          "pattern": "^[0-9]{10}$"
+        },
+        "first_name": {
+          "type": "string"
+        },
+        "last_name": {
+          "type": "string"
+        },
+        "credential": {
+          "type": "string",
+          "description": "Provider credential (MD, DO, NP, PA, etc.)"
+        },
+        "taxonomy_code": {
+          "type": "string",
+          "description": "Healthcare Provider Taxonomy Code"
+        },
+        "address": {
+          "$ref": "#/definitions/address"
+        },
+        "phone": {
+          "type": "string"
+        }
+      }
+    },
+    "billing_provider": {
+      "type": "object",
+      "description": "Facility/organization that submits claim",
+      "properties": {
+        "npi": {
+          "type": "string",
+          "pattern": "^[0-9]{10}$"
+        },
+        "facility_name": {
+          "type": "string"
+        },
+        "ein": {
+          "type": "string",
+          "description": "Employer Identification Number"
+        },
+        "address": {
+          "$ref": "#/definitions/address"
+        },
+        "phone": {
+          "type": "string"
+        }
+      }
+    },
+    "diagnoses": {
+      "type": "array",
+      "description": "Primary and secondary diagnoses",
+      "items": {
+        "$ref": "#/definitions/diagnosis"
+      },
+      "minItems": 1,
+      "maxItems": 12
+    },
+    "service_lines": {
+      "type": "array",
+      "description": "Healthcare services/procedures rendered",
+      "items": {
+        "$ref": "#/definitions/service_line"
+      },
+      "minItems": 1
+    },
+    "claim_totals": {
+      "type": "object",
+      "description": "Aggregated claim amounts",
+      "properties": {
+        "total_charges": {
+          "type": "number",
+          "description": "Sum of all service line charges"
+        },
+        "total_paid": {
+          "type": "number",
+          "description": "Total amount paid by insurance"
+        },
+        "patient_responsibility": {
+          "type": "number",
+          "description": "Copay + coinsurance + deductible"
+        }
+      }
+    }
+  },
+  "definitions": {
+    "address": {
+      "type": "object",
+      "properties": {
+        "street_address": {
+          "type": "string"
+        },
+        "city": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 2
+        },
+        "zip_code": {
+          "type": "string",
+          "pattern": "^[0-9]{5}(-[0-9]{4})?$"
+        },
+        "country": {
+          "type": "string",
+          "default": "US"
+        }
+      }
+    },
+    "diagnosis": {
+      "type": "object",
+      "description": "ICD-10 diagnosis code and details",
+      "properties": {
+        "sequence": {
+          "type": "integer",
+          "description": "Diagnosis sequence (1 = primary)"
+        },
+        "icd10_code": {
+          "type": "string",
+          "description": "ICD-10-CM diagnosis code (e.g., J45.901)"
+        },
+        "description": {
+          "type": "string",
+          "description": "Diagnosis description"
+        },
+        "date_of_diagnosis": {
+          "type": "string",
+          "format": "date"
+        },
+        "is_primary": {
+          "type": "boolean",
+          "description": "Is this the primary/principal diagnosis?"
+        }
+      },
+      "required": ["icd10_code"]
+    },
+    "service_line": {
+      "type": "object",
+      "description": "Individual service/procedure",
+      "properties": {
+        "line_number": {
+          "type": "integer",
+          "description": "Service line sequence number"
+        },
+        "service_date": {
+          "type": "string",
+          "format": "date",
+          "description": "Date service was rendered"
+        },
+        "service_end_date": {
+          "type": "string",
+          "format": "date",
+          "description": "End date for service period"
+        },
+        "place_of_service_code": {
+          "type": "string",
+          "description": "CMS place of service code (01-99)"
+        },
+        "type_of_service_code": {
+          "type": "string",
+          "description": "Type of service code"
+        },
+        "procedure_code": {
+          "type": "string",
+          "description": "CPT or HCPCS code"
+        },
+        "procedure_modifiers": {
+          "type": "array",
+          "description": "Procedure modifiers (e.g., 25, 59)",
+          "items": {
+            "type": "string",
+            "maxLength": 2
+          },
+          "maxItems": 4
+        },
+        "description": {
+          "type": "string",
+          "description": "Procedure description"
+        },
+        "units": {
+          "type": "number",
+          "description": "Units of service (e.g., number of visits)"
+        },
+        "unit_price": {
+          "type": "number",
+          "description": "Price per unit"
+        },
+        "line_charge": {
+          "type": "number",
+          "description": "Total line charge (units × unit_price)"
+        },
+        "line_paid": {
+          "type": "number",
+          "description": "Amount paid for this line"
+        },
+        "line_patient_responsibility": {
+          "type": "number",
+          "description": "Patient copay/coinsurance/deductible for this line"
+        },
+        "diagnosis_pointers": {
+          "type": "array",
+          "description": "References to diagnoses (A, B, C, D, etc.)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rendering_provider_npi": {
+          "type": "string",
+          "description": "NPI of provider who rendered this service"
+        }
+      },
+      "required": ["procedure_code", "service_date", "line_charge"]
+    }
+  }
+}

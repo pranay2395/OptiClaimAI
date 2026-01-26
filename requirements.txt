@@ -1,4 +1,4 @@
-streamlit
+streamlit==1.52.1
 pandas
 requests
 openpyxl
@@ -6,3 +6,13 @@ pydantic
 ollama
 tqdm
 plotly
+
+# SaaS / Database
+sqlalchemy==2.0.23
+stripe==7.4.0
+python-dotenv==1.0.0
+bcrypt==4.1.1
+cryptography==41.0.7
+
+# Session management
+streamlit-authenticator==0.3.2
