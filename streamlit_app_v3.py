@@ -73,24 +73,56 @@ if "claim_data" not in st.session_state:
     st.session_state.claim_data = {}
 if "ai_ready" not in st.session_state:
     st.session_state.ai_ready = Config.validate_ai_service()
+if "available_models" not in st.session_state:
+    st.session_state.available_models = get_available_models()
+if "selected_model" not in st.session_state:
+    models = get_available_models()
+    st.session_state.selected_model = models[0] if models else None
 
-def send_to_ollama(prompt):
+def get_available_models():
+    """Get list of available Ollama models"""
+    try:
+        response = requests.get(
+            f"{Config.OLLAMA_URL}/api/tags",
+            timeout=5
+        )
+        if response.status_code == 200:
+            models = response.json().get("models", [])
+            return [m["name"] for m in models]
+        return []
+    except Exception:
+        return []
+
+def send_to_ollama(prompt, model=None):
     """Send prompt to Ollama and get response"""
     try:
+        available_models = get_available_models()
+        
+        if not available_models:
+            return "❌ No Ollama models available. Please pull a model first: `ollama pull llama2`"
+        
+        # Use selected model or first available
+        selected_model = model or available_models[0]
+        
         response = requests.post(
             f"{Config.OLLAMA_URL}/api/generate",
             json={
-                "model": Config.OLLAMA_MODEL,
+                "model": selected_model,
                 "prompt": prompt,
                 "stream": False
             },
             timeout=Config.OLLAMA_TIMEOUT
         )
         if response.status_code == 200:
-            return response.json().get("response", "Error processing request")
-        return "AI service error"
+            result = response.json().get("response", "")
+            return result if result else "No response from AI"
+        return f"❌ AI service error (status {response.status_code})"
+    except requests.exceptions.Timeout:
+        return "❌ AI service timeout - model may be loading. Please try again."
+    except requests.exceptions.ConnectionError:
+        return f"❌ Cannot connect to Ollama at {Config.OLLAMA_URL}"
     except Exception as e:
-        return f"Connection error: {str(e)}"
+        return f"❌ Error: {str(e)}"
 
 def init_ai_prompts():
     """Initialize AI system prompts"""
@@ -137,6 +169,20 @@ col1, col2 = st.columns([1, 2])
 with col1:
     st.markdown("### 💬 AI Assistant")
     
+    # Model selector
+    available_models = get_available_models()
+    if available_models:
+        st.session_state.selected_model = st.selectbox(
+            "🤖 Model",
+            available_models,
+            index=available_models.index(st.session_state.selected_model) if st.session_state.selected_model in available_models else 0,
+            key="model_selector"
+        )
+    else:
+        st.warning("⚠️ No Ollama models found. Pull a model first.")
+    
+    st.divider()
+    
     # Chat history display
     chat_container = st.container()
     with chat_container:
@@ -154,8 +200,8 @@ with col1:
         st.session_state.chat_history.append({"role": "user", "content": user_input})
         
         # Get AI response
-        if st.session_state.ai_ready:
-            ai_response = send_to_ollama(user_input)
+        if st.session_state.ai_ready and available_models:
+            ai_response = send_to_ollama(user_input, st.session_state.selected_model)
         else:
             ai_response = "AI service is currently unavailable. Please check your configuration."
         
@@ -170,7 +216,8 @@ with col1:
         st.rerun()
     
     if st.button("🆘 Get Help", use_container_width=True):
-        st.session_state.chat_history.append({"role": "assistant", "content": "What do you need help with? I can help you:\n1. Fill Medicaid/Medicare forms\n2. Validate claims\n3. Understand claim requirements\n4. Process your data step-by-step"})
+        help_msg = "What do you need help with? I can help you:\n1. Fill Medicaid/Medicare forms\n2. Validate claims\n3. Understand claim requirements\n4. Process your data step-by-step"
+        st.session_state.chat_history.append({"role": "assistant", "content": help_msg})
         st.rerun()
     
     if st.button("🗑️ Clear Chat", use_container_width=True):
