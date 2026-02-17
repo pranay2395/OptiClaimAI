@@ -1,33 +1,45 @@
 """
-OptiClaimAI - New UI with Google-like Search and Ollama Chat
-Professional Medicare/Medicaid Claims Processing
+OptiClaimAI - Integrated Claims Processing with PDF Upload, Form Filling, and AI Assistance
+Professional Medicare/Medicaid Claims with Real-Time Validation and Context-Aware AI Chat
 """
 
 import streamlit as st
 import requests
 from config import Config
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import json
+import sys
+from pathlib import Path
+from typing import Dict, Optional, Any, List
+
+# Add services to path
+sys.path.insert(0, str(Path(__file__).parent))
+
+# Import backend services
+try:
+    from services.pdf_parser import PDFClaimParser
+    from services.validation_engine import ValidationEngine, ValidationSeverity
+    from services.ai_engine import AIEngine
+    from model.canonical_claim import CanonicalClaim, Patient, Provider, ServiceLine, Diagnosis, ClaimMetadata
+except ImportError as e:
+    st.error(f"❌ Failed to import services: {str(e)}")
+    st.stop()
 
 # Page configuration
 st.set_page_config(
-    page_title="OptiClaimAI",
+    page_title="OptiClaimAI - Claims Intelligence",
     page_icon="🏥",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# Custom CSS for Google-like interface
+# ============= CSS STYLING =============
+
 st.markdown("""
 <style>
     .main-header {
         text-align: center;
         padding: 40px 0 20px 0;
-    }
-    .search-container {
-        display: flex;
-        justify-content: center;
-        margin: 20px 0;
     }
     .claim-form {
         background-color: #f9f9f9;
@@ -37,9 +49,11 @@ st.markdown("""
     }
     .chat-container {
         background-color: #ffffff;
-        border-left: 1px solid #e0e0e0;
         padding: 20px;
         border-radius: 8px;
+        border: 1px solid #e0e0e0;
+        max-height: 600px;
+        overflow-y: auto;
     }
     .chat-message {
         margin: 10px 0;
@@ -49,22 +63,49 @@ st.markdown("""
     .chat-user {
         background-color: #e3f2fd;
         text-align: right;
+        margin-left: 20%;
     }
     .chat-ai {
         background-color: #f5f5f5;
+        margin-right: 10%;
     }
-    .btn-primary {
-        background-color: #4285F4;
-        color: white;
-        padding: 10px 20px;
+    .validation-issue-high {
+        background-color: #ffebee;
+        border-left: 4px solid #f44336;
+        padding: 10px;
+        margin: 5px 0;
         border-radius: 4px;
-        border: none;
-        cursor: pointer;
+    }
+    .validation-issue-medium {
+        background-color: #fff3e0;
+        border-left: 4px solid #ff9800;
+        padding: 10px;
+        margin: 5px 0;
+        border-radius: 4px;
+    }
+    .validation-issue-low {
+        background-color: #e8f5e9;
+        border-left: 4px solid #4caf50;
+        padding: 10px;
+        margin: 5px 0;
+        border-radius: 4px;
+    }
+    .success-box {
+        background-color: #d4edda;
+        border-left: 4px solid #28a745;
+        padding: 10px;
+        border-radius: 4px;
+    }
+    .error-box {
+        background-color: #f8d7da;
+        border-left: 4px solid #f44336;
+        padding: 10px;
+        border-radius: 4px;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# ============= FUNCTION DEFINITIONS (Must be before session state) =============
+# ============= HELPER FUNCTIONS =============
 
 def get_available_models():
     """Get list of available Ollama models"""
@@ -80,7 +121,7 @@ def get_available_models():
     except Exception:
         return []
 
-def send_to_ollama(prompt, model=None):
+def send_to_ollama(prompt: str, model: Optional[str] = None) -> str:
     """Send prompt to Ollama and get response"""
     try:
         available_models = get_available_models()
@@ -88,7 +129,6 @@ def send_to_ollama(prompt, model=None):
         if not available_models:
             return "❌ No Ollama models available. Please pull a model first: `ollama pull llama2`"
         
-        # Use selected model or first available
         selected_model = model or available_models[0]
         
         response = requests.post(
@@ -111,31 +151,74 @@ def send_to_ollama(prompt, model=None):
     except Exception as e:
         return f"❌ Error: {str(e)}"
 
-def init_ai_prompts():
-    """Initialize AI system prompts"""
-    return {
-        "system": """You are OptiClaimAI assistant. You help Medicare/Medicaid data entry operators:
-1. Process healthcare claims
-2. Fill out claim forms
-3. Validate claim data
-4. Answer questions about claim processing
+def parse_pdf_for_claim(pdf_bytes: bytes) -> Optional[Dict[str, Any]]:
+    """Parse PDF and extract claim data"""
+    try:
+        parsed_data = PDFClaimParser.parse_from_pdf_bytes(pdf_bytes)
+        return parsed_data
+    except Exception as e:
+        st.error(f"Error parsing PDF: {str(e)}")
+        return None
 
-Be concise, professional, and guide users step-by-step.
-When user asks "how to fill form", respond with: "Click on 'Medicaid Claim Form' button in the left panel. I'll guide you through each field."
-Current app features:
-- Medicaid Claim Form
-- Medicare Claim Form  
-- Claim Validation
-- AI-Powered Analysis""",
-        "capabilities": """I can help you with:
-1. **📋 Fill Claims** - Step-by-step guidance for Medicaid/Medicare forms
-2. **✅ Validate Claims** - Check if your claim meets requirements
-3. **🤖 AI Analysis** - Get intelligent suggestions to improve claims
-4. **❓ How-to Guides** - Learn how to use each feature
-5. **🔍 Search Help** - Find answers about claim processing
+def validate_current_claim() -> Optional[Dict[str, Any]]:
+    """Validate the current claim being filled"""
+    try:
+        if not st.session_state.current_claim_dict:
+            return None
+        
+        engine = ValidationEngine()
+        result = engine.validate_claim(st.session_state.current_claim_dict)
+        return result.to_dict()
+    except Exception as e:
+        st.error(f"Validation error: {str(e)}")
+        return None
 
-What would you like to do?"""
-    }
+def build_claim_from_form_data() -> Optional[Dict[str, Any]]:
+    """Build claim dictionary from form data in session state"""
+    try:
+        claim_data = st.session_state.current_claim_dict
+        
+        if not claim_data.get("patient", {}).get("first_name"):
+            return None
+        
+        # Structure the claim
+        return {
+            "patient": claim_data.get("patient", {}),
+            "provider": claim_data.get("provider", {}),
+            "service_lines": claim_data.get("service_lines", []),
+            "diagnoses": claim_data.get("diagnoses", [])
+        }
+    except Exception:
+        return None
+
+def get_ai_assistance(question: str, include_claim_context: bool = True) -> str:
+    """Get AI assistance with optional claim context"""
+    try:
+        ai_engine = AIEngine()
+        
+        # If there's a current claim, provide context
+        if include_claim_context and st.session_state.current_claim_dict:
+            patient = st.session_state.current_claim_dict.get("patient", {})
+            provider = st.session_state.current_claim_dict.get("provider", {})
+            
+            context = f"""
+Current claim being filled:
+- Patient: {patient.get('first_name', 'N/A')} {patient.get('last_name', 'N/A')}
+- Provider NPI: {provider.get('npi', 'N/A')}
+
+User question: {question}
+"""
+        else:
+            context = question
+        
+        # Use Ollama if available
+        if get_available_models():
+            return send_to_ollama(context, st.session_state.selected_model)
+        else:
+            return "⚠️ No AI models available. Please ensure Ollama is running and a model is pulled."
+    
+    except Exception as e:
+        return f"❌ AI Error: {str(e)}"
 
 # ============= SESSION STATE INITIALIZATION =============
 
@@ -144,8 +227,15 @@ if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 if "current_form" not in st.session_state:
     st.session_state.current_form = "home"
-if "claim_data" not in st.session_state:
-    st.session_state.claim_data = {}
+if "current_claim_dict" not in st.session_state:
+    st.session_state.current_claim_dict = {
+        "patient": {},
+        "provider": {},
+        "service_lines": [],
+        "diagnoses": []
+    }
+if "validation_result" not in st.session_state:
+    st.session_state.validation_result = None
 if "ai_ready" not in st.session_state:
     st.session_state.ai_ready = Config.validate_ai_service()
 if "available_models" not in st.session_state:
@@ -153,6 +243,8 @@ if "available_models" not in st.session_state:
 if "selected_model" not in st.session_state:
     models = get_available_models()
     st.session_state.selected_model = models[0] if models else None
+if "pdf_status" not in st.session_state:
+    st.session_state.pdf_status = None
 
 # Header
 st.markdown("""
