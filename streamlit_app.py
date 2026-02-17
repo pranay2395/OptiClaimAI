@@ -57,24 +57,44 @@ class AIEngineFactory:
     """Lazy-loaded, runtime-selectable AI provider"""
     
     @staticmethod
-    def get_ollama_response(prompt: str, model: str = "glm-4.6:cloud") -> Optional[str]:
-        """Execute Ollama request ONLY if called"""
+    def get_ollama_response(prompt: str, model: str = "llama2") -> Optional[str]:
+        """Execute Ollama request on port 8000"""
         try:
             import requests
             response = requests.post(
-                "http://localhost:11434/api/generate",
+                "http://localhost:8000/api/generate",
                 json={"model": model, "prompt": prompt, "stream": False},
                 timeout=30
             )
             if response.status_code == 200:
                 return response.json().get("response", "")
-            # Handle memory errors gracefully
-            elif response.status_code == 500:
-                error_msg = response.json().get("error", "Model requires too much memory")
-                return f"Ollama: {error_msg}"
             return None
         except Exception as e:
             return f"Ollama error: {str(e)}"
+    
+    @staticmethod
+    def get_backend_response(prompt: str) -> Optional[str]:
+        """Execute request to FastAPI backend service"""
+        try:
+            import requests
+            response = requests.post(
+                "http://localhost:8001/analyze",
+                json={"prompt": prompt},
+                timeout=30
+            )
+            if response.status_code == 200:
+                result = response.json()
+                # Handle various response formats
+                if isinstance(result, dict) and "response" in result:
+                    return result.get("response", "")
+                elif isinstance(result, dict) and "analysis" in result:
+                    return result.get("analysis", "")
+                elif isinstance(result, str):
+                    return result
+                return str(result)
+            return None
+        except Exception as e:
+            return f"Backend error: {str(e)}"
     
     @staticmethod
     def get_openai_response(prompt: str, api_key: str, model: str = "gpt-4") -> Optional[str]:
@@ -95,6 +115,8 @@ class AIEngineFactory:
         """Execute AI based on provider selection"""
         if provider == "ollama":
             return AIEngineFactory.get_ollama_response(prompt)
+        elif provider == "backend":
+            return AIEngineFactory.get_backend_response(prompt)
         elif provider == "openai" and api_key:
             return AIEngineFactory.get_openai_response(prompt, api_key)
         return None
@@ -261,7 +283,7 @@ with st.sidebar:
     **Technology:**
     - X12 837P Compliant
     - Local Processing (No Cloud)
-    - Optional AI (Ollama)
+    - Ollama LLM Support + FastAPI Backend
     """)
     
     st.divider()
@@ -383,11 +405,15 @@ elif st.session_state.mode == 'edi':
         with col1:
             ai_provider = st.selectbox(
                 "AI Provider",
-                ["disabled", "ollama", "openai"],
+                ["disabled", "ollama", "backend", "openai"],
                 key="ai_provider_select"
             )
             if ai_provider != "disabled":
                 st.session_state.ai_provider = ai_provider
+                if ai_provider == "ollama":
+                    st.success("✅ Connected to Ollama (port 8000)")
+                elif ai_provider == "backend":
+                    st.success("✅ Connected to FastAPI backend (port 8001)")
         
         with col2:
             if ai_provider == "openai":
