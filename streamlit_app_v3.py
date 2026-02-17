@@ -64,20 +64,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize session state
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-if "current_form" not in st.session_state:
-    st.session_state.current_form = "home"
-if "claim_data" not in st.session_state:
-    st.session_state.claim_data = {}
-if "ai_ready" not in st.session_state:
-    st.session_state.ai_ready = Config.validate_ai_service()
-if "available_models" not in st.session_state:
-    st.session_state.available_models = get_available_models()
-if "selected_model" not in st.session_state:
-    models = get_available_models()
-    st.session_state.selected_model = models[0] if models else None
+# ============= FUNCTION DEFINITIONS (Must be before session state) =============
 
 def get_available_models():
     """Get list of available Ollama models"""
@@ -149,6 +136,23 @@ Current app features:
 
 What would you like to do?"""
     }
+
+# ============= SESSION STATE INITIALIZATION =============
+
+
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+if "current_form" not in st.session_state:
+    st.session_state.current_form = "home"
+if "claim_data" not in st.session_state:
+    st.session_state.claim_data = {}
+if "ai_ready" not in st.session_state:
+    st.session_state.ai_ready = Config.validate_ai_service()
+if "available_models" not in st.session_state:
+    st.session_state.available_models = get_available_models()
+if "selected_model" not in st.session_state:
+    models = get_available_models()
+    st.session_state.selected_model = models[0] if models else None
 
 # Header
 st.markdown("""
