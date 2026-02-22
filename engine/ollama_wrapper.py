@@ -18,22 +18,40 @@ class OllamaWrapper:
     def __init__(self, host: str = "localhost", port: int = 11434):
         self.base_url = f"http://{host}:{port}"
         self.timeout = 120  # 2 minutes for long responses
+        
+        # DEBUG: Print the URL we are about to check
+        print(f"🔍 [OllamaWrapper] Attempting to connect to Ollama at {self.base_url}")
+        
         self.available = self._check_connection()
         
         if self.available:
             logger.info(f"✅ Connected to Ollama at {self.base_url}")
             self.available_models = self._fetch_models()
-            logger.info(f"📦 Available models: {self.available_models}")
+            # DEBUG: Confirm success and show models found
+            print(f"✅ [OllamaWrapper] Connection successful. Available models: {self.available_models}")
         else:
+            # DEBUG: Explicitly state the failure
+            print(f"❌ [OllamaWrapper] FAILED to connect to Ollama at {self.base_url}")
             logger.warning(f"❌ Cannot connect to Ollama at {self.base_url}")
             self.available_models = []
     
     def _check_connection(self) -> bool:
         """Check if Ollama is running and accessible"""
         try:
+            # DEBUG: Print the exact endpoint being hit
+            print(f"🔍 [OllamaWrapper] Sending GET request to {self.base_url}/api/tags")
             response = requests.get(f"{self.base_url}/api/tags", timeout=5)
+            # DEBUG: Print the response status code
+            print(f"🔍 [OllamaWrapper] Response status code: {response.status_code}")
             return response.status_code == 200
+        except requests.exceptions.ConnectionError as e:
+            # DEBUG: This is the most common failure
+            print(f"❌ [OllamaWrapper] Connection Error: Could not connect to Ollama. Is it running? Details: {e}")
+            logger.debug(f"Ollama connection check failed: {e}")
+            return False
         except Exception as e:
+            # DEBUG: Catch any other unexpected errors
+            print(f"❌ [OllamaWrapper] An unexpected error occurred during connection check: {e}")
             logger.debug(f"Ollama connection check failed: {e}")
             return False
     
@@ -46,9 +64,12 @@ class OllamaWrapper:
             response = requests.get(f"{self.base_url}/api/tags", timeout=5)
             if response.status_code == 200:
                 data = response.json()
-                models = [model['name'].split(':')[0] for model in data.get('models', [])]
+                # FIX: Return the full model name instead of splitting it
+                models = [model['name'] for model in data.get('models', [])]
+                # The rest of this logic is fine
                 return list(set(models))  # Remove duplicates
         except Exception as e:
+            print(f"❌ [OllamaWrapper] Failed to fetch models: {e}")
             logger.error(f"Failed to fetch models: {e}")
         
         return []
@@ -63,28 +84,20 @@ class OllamaWrapper:
     ) -> Optional[str]:
         """
         Generate response from Ollama model
-        
-        Args:
-            prompt: Input prompt
-            model: Model name (e.g., 'llama3.1', 'glm-4', 'phi')
-            stream: Whether to stream response
-            temperature: Randomness (0.0-1.0)
-            top_p: Nucleus sampling parameter
-        
-        Returns:
-            Generated text or None if error
         """
         if not self.available:
-            logger.error("Ollama not available")
+            logger.error("Ollama not available for generation")
             return None
         
         try:
+            # DEBUG: Log the generation attempt
+            print(f"🤖 [OllamaWrapper] Generating with model '{model}'...")
             response = requests.post(
                 f"{self.base_url}/api/generate",
                 json={
                     "model": model,
                     "prompt": prompt,
-                    "stream": False,  # We'll handle non-streaming for simplicity
+                    "stream": False,
                     "temperature": temperature,
                     "top_p": top_p,
                 },
@@ -95,16 +108,21 @@ class OllamaWrapper:
                 result = response.json()
                 return result.get("response", "").strip()
             else:
+                # DEBUG: Log generation failures
+                print(f"❌ [OllamaWrapper] Generation error: HTTP {response.status_code} - {response.text}")
                 logger.error(f"Ollama error: HTTP {response.status_code}")
                 return None
                 
         except requests.exceptions.Timeout:
+            print(f"❌ [OllamaWrapper] Generation timed out after {self.timeout}s")
             logger.error(f"Ollama request timed out (>{self.timeout}s)")
             return None
         except requests.exceptions.ConnectionError:
+            print(f"❌ [OllamaWrapper] Connection lost during generation.")
             logger.error("Cannot connect to Ollama")
             return None
         except Exception as e:
+            print(f"❌ [OllamaWrapper] An unexpected error occurred during generation: {e}")
             logger.error(f"Ollama error: {str(e)}")
             return None
     
@@ -207,3 +225,4 @@ def reset_ollama():
     global _ollama_instance
     _ollama_instance = None
     return get_ollama()
+
