@@ -27,12 +27,14 @@ try:
     from streamlit_ui.edi_mode import render_edi_mode
     from streamlit_ui.cms1500_form_v3 import render_cms1500_form
     from streamlit_ui.results_display import render_results
+    from streamlit_ui.chat_interface import render_chat_interface
 except ImportError:
     render_form_mode = None
     render_text_mode = None
     render_edi_mode = None
     render_cms1500_form = None
     render_results = None
+    render_chat_interface = None
 
 # CMS-1500 & EDI (NO AI)
 try:
@@ -53,22 +55,33 @@ except ImportError:
 
 # ============= AI ENGINE FACTORY (LAZY + RUNTIME) =============
 
+# Import the proper Ollama wrapper
+try:
+    from engine.ollama_wrapper import get_ollama
+except ImportError:
+    get_ollama = None
+
 class AIEngineFactory:
     """Lazy-loaded, runtime-selectable AI provider"""
     
     @staticmethod
-    def get_ollama_response(prompt: str, model: str = "llama2") -> Optional[str]:
-        """Execute Ollama request on port 8000"""
+    def get_ollama_response(prompt: str, model: str = "llama3.1") -> Optional[str]:
+        """Execute Ollama request on port 11434 (FIXED PORT)"""
         try:
-            import requests
-            response = requests.post(
-                "http://localhost:8000/api/generate",
-                json={"model": model, "prompt": prompt, "stream": False},
-                timeout=30
+            if get_ollama is None:
+                return None
+            
+            ollama = get_ollama()
+            if not ollama.is_available():
+                return "Ollama not available at localhost:11434"
+            
+            result = ollama.generate(
+                prompt=prompt,
+                model=model,
+                temperature=0.7,
+                top_p=0.9
             )
-            if response.status_code == 200:
-                return response.json().get("response", "")
-            return None
+            return result if result else None
         except Exception as e:
             return f"Ollama error: {str(e)}"
     
@@ -174,6 +187,10 @@ def init_session_state():
         st.session_state.claim = None
     if 'validation_result' not in st.session_state:
         st.session_state.validation_result = None
+    if 'chat_history' not in st.session_state:
+        st.session_state.chat_history = []
+    if 'chat_model' not in st.session_state:
+        st.session_state.chat_model = "llama3.1"
 
 init_session_state()
 
@@ -253,11 +270,13 @@ with st.sidebar:
     
     mode_select = st.radio(
         "Select Input Mode:",
-        options=["📋 CMS-1500", "📝 Form", "📄 Text", "📊 EDI Parser", "📈 Analytics"],
+        options=["� Chat", "📋 CMS-1500", "📝 Form", "📄 Text", "📊 EDI Parser", "📈 Analytics"],
         key="mode_selector"
     )
     
-    if mode_select == "📋 CMS-1500":
+    if mode_select == "💬 Chat":
+        st.session_state.mode = 'chat'
+    elif mode_select == "📋 CMS-1500":
         st.session_state.mode = 'cms1500'
     elif mode_select == "📝 Form":
         st.session_state.mode = 'form'
@@ -274,6 +293,7 @@ with st.sidebar:
     st.markdown("""
     OptiClaimAI is a healthcare claims intelligence platform that supports:
     
+    - **Chat** - AI assistant (offline with Ollama)
     - **CMS-1500** - Complete form with EDI generation
     - **Form** - Guided form entry
     - **Text** - Natural language parsing
@@ -283,7 +303,8 @@ with st.sidebar:
     **Technology:**
     - X12 837P Compliant
     - Local Processing (No Cloud)
-    - Ollama LLM Support + FastAPI Backend
+    - Ollama LLM Support (port 11434)
+    - FastAPI Backend & OpenAI optional
     """)
     
     st.divider()
@@ -296,7 +317,14 @@ with st.sidebar:
 
 # ============= MODE ROUTING =============
 
-if st.session_state.mode is None or st.session_state.mode == 'cms1500':
+# Chat mode - Load first if selected
+if st.session_state.mode == 'chat':
+    if render_chat_interface is not None:
+        render_chat_interface()
+    else:
+        st.error("Chat interface not available. Please check installation.")
+
+elif st.session_state.mode is None or st.session_state.mode == 'cms1500':
     st.header("📋 CMS-1500 Form")
     
     if render_cms1500_form is not None:

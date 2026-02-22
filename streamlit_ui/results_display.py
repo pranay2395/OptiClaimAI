@@ -4,8 +4,13 @@ Display validation results with AI-powered explanations
 
 import streamlit as st
 from model.claim_schema import Claim
-from engine.ai_engine import OllamaEngine
 from engine.output_formatter import OutputFormatter
+
+# Lazy import Ollama
+try:
+    from engine.ollama_wrapper import get_ollama
+except ImportError:
+    get_ollama = None
 
 
 def render_results(claim: Claim, validation_result: dict):
@@ -48,7 +53,6 @@ def render_results(claim: Claim, validation_result: dict):
         st.success("✨ No issues found! This claim is ready to submit.")
     else:
         issues_grouped = OutputFormatter.format_issues_for_display(validation_result['issues'])
-        ai_engine = OllamaEngine()
         
         for severity in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']:
             if issues_grouped[severity]:
@@ -81,15 +85,28 @@ def render_results(claim: Claim, validation_result: dict):
                                 help="Get AI explanation for this issue"
                             ):
                                 with st.spinner("Getting AI explanation..."):
-                                    explanation = ai_engine.explain_issue(
-                                        issue.get('code', 'UNKNOWN'),
-                                        issue.get('message', ''),
-                                        OutputFormatter.format_claim_summary(claim)
-                                    )
-                                    if explanation:
-                                        st.info(f"**AI Explanation:** {explanation}")
+                                    if get_ollama:
+                                        ollama = get_ollama()
+                                        if ollama.is_available():
+                                            # Build simple prompt for explanation
+                                            prompt = f"""Explain this healthcare claims issue in 2-3 sentences:
+Issue: {issue.get('message', '')}
+Code: {issue.get('code', '')}
+How to fix: {issue.get('why_failed', '')}
+
+Keep it simple and actionable."""
+                                            explanation = ollama.generate(
+                                                prompt=prompt,
+                                                model="llama3.1"
+                                            )
+                                            if explanation:
+                                                st.info(f"**AI Explanation:** {explanation}")
+                                            else:
+                                                st.caption("*(AI explanation unavailable)*")
+                                        else:
+                                            st.caption("*(Ollama not running - use Chat mode to configure)*")
                                     else:
-                                        st.caption("*(AI explanation unavailable - Ollama not running)*")
+                                        st.caption("*(AI not available)*")
                         
                         st.divider()
     
@@ -97,17 +114,33 @@ def render_results(claim: Claim, validation_result: dict):
     if validation_result['issue_count'] > 0:
         st.divider()
         if st.button("💡 Get AI Guidance on Fixing Issues", type="secondary", use_container_width=True):
-            ai_engine = OllamaEngine()
             with st.spinner("Generating fix guidance..."):
-                guidance = ai_engine.suggest_fixes(
-                    validation_result['issues'],
-                    OutputFormatter.format_claim_summary(claim)
-                )
-                if guidance:
-                    st.success("**Fix Guidance:**")
-                    st.markdown(guidance)
+                if get_ollama:
+                    ollama = get_ollama()
+                    if ollama.is_available():
+                        # Build fix guidance prompt
+                        issues_text = "\n".join([f"- {issue.get('message', '')}" for issue in validation_result['issues'][:5]])
+                        prompt = f"""As a healthcare billing expert, provide 3-5 practical fixes for these claim issues:
+
+{issues_text}
+
+For claim:
+{OutputFormatter.format_claim_summary(claim)}
+
+Provide actionable steps."""
+                        guidance = ollama.generate(
+                            prompt=prompt,
+                            model="llama3.1"
+                        )
+                        if guidance:
+                            st.success("**Fix Guidance:**")
+                            st.markdown(guidance)
+                        else:
+                            st.info("*(AI guidance unavailable)*")
+                    else:
+                        st.info("*(Ollama not running - use Chat mode to configure)*")
                 else:
-                    st.info("*(AI guidance unavailable - Ollama not running)*")
+                    st.info("*(AI not available)*")
     
     st.divider()
     
