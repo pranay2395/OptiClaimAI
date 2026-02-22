@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python
 """Check Ollama status and models"""
 
