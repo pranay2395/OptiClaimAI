@@ -20,7 +20,10 @@ try:
     from services.pdf_parser import PDFClaimParser
     from services.validation_engine import ValidationEngine, ValidationSeverity
     from services.ai_engine import AIEngine
+    from services.npi_lookup import get_npi_service
+    from services.edi_bridge import get_edi_service
     from model.canonical_claim import CanonicalClaim, Patient, Provider, ServiceLine, Diagnosis, ClaimMetadata
+    from engine.parser import EDI837Parser
 except ImportError as e:
     st.error(f"❌ Failed to import services: {str(e)}")
     st.stop()
@@ -168,6 +171,91 @@ Be concise and practical."""
     except Exception as e:
         return f"Error getting explanation: {str(e)}"
 
+def save_claim_to_file(claim_dict: Dict[str, Any], filename: str = None) -> bool:
+    """Save claim to JSON file"""
+    try:
+        if not filename:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"claim_{timestamp}.json"
+        
+        # Create claims directory if it doesn't exist
+        claims_dir = Path("data/saved_claims")
+        claims_dir.mkdir(parents=True, exist_ok=True)
+        
+        filepath = claims_dir / filename
+        with open(filepath, "w") as f:
+            json.dump(claim_dict, f, indent=2, default=str)
+        
+        return True, str(filepath)
+    except Exception as e:
+        return False, str(e)
+
+def lookup_npi(npi: str) -> Optional[Dict[str, Any]]:
+    """Look up provider NPI"""
+    try:
+        npi_service = get_npi_service()
+        result = npi_service.lookup_npi(npi)
+        return result
+    except Exception as e:
+        st.error(f"NPI Lookup Error: {str(e)}")
+        return None
+
+def parse_edi_file(edi_content: str) -> Optional[Dict[str, Any]]:
+    """Parse EDI 837P file"""
+    try:
+        edi_service = get_edi_service()
+        parsed, error = edi_service.parse_edi_837p(edi_content)
+        if error:
+            st.warning(f"⚠️ EDI Parse Warning: {error}")
+        return parsed
+    except Exception as e:
+        st.error(f"EDI Parse Error: {str(e)}")
+        return None
+
+def parse_free_text(text: str) -> Optional[Dict[str, Any]]:
+    """Parse free-form text input (simplified regex-based)"""
+    try:
+        import re
+        
+        data = {
+            "patient": {},
+            "provider": {},
+            "service_lines": [],
+            "diagnoses": []
+        }
+        
+        # Patient name pattern
+        name_match = re.search(r'(?:Patient|For).*?(\w+)\s+(\w+)', text, re.IGNORECASE)
+        if name_match:
+            data["patient"]["first_name"] = name_match.group(1)
+            data["patient"]["last_name"] = name_match.group(2)
+        
+        # DOB pattern
+        dob_match = re.search(r'(?:DOB|Date of Birth).*?(\d{1,2})[/-](\d{1,2})[/-](\d{4})', text, re.IGNORECASE)
+        if dob_match:
+            data["patient"]["date_of_birth"] = f"{dob_match.group(3)}-{dob_match.group(1):0>2}-{dob_match.group(2):0>2}"
+        
+        # NPI pattern
+        npi_match = re.search(r'(?:NPI|Provider.*?)(\d{10})', text, re.IGNORECASE)
+        if npi_match:
+            data["provider"]["npi"] = npi_match.group(1)
+        
+        # CPT code pattern
+        cpt_match = re.search(r'(?:CPT|Code).*?(\d{5})', text, re.IGNORECASE)
+        if cpt_match:
+            data["service_lines"].append({"procedure_code": cpt_match.group(1)})
+        
+        # ICD-10 pattern
+        icd_match = re.search(r'(?:ICD|Diagnosis).*?([A-Z]\d{2}(?:\.\d+)?)', text, re.IGNORECASE)
+        if icd_match:
+            data["diagnoses"].append({"icd10_code": icd_match.group(1)})
+        
+        return data if any([data["patient"], data["provider"]]) else None
+    
+    except Exception as e:
+        st.error(f"Text Parse Error: {str(e)}")
+        return None
+
 # ============= SESSION STATE INITIALIZATION =============
 
 if "chat_history" not in st.session_state:
@@ -188,6 +276,10 @@ if "pdf_data" not in st.session_state:
 if "selected_model" not in st.session_state:
     models = get_available_models()
     st.session_state.selected_model = models[0] if models else None
+if "npi_lookup_result" not in st.session_state:
+    st.session_state.npi_lookup_result = None
+if "saved_claims" not in st.session_state:
+    st.session_state.saved_claims = []
 
 # ============= MAIN LAYOUT =============
 
@@ -263,10 +355,11 @@ with col_right:
 **Choose how to submit your claim:**
 1. **Upload PDF** - We'll extract data automatically
 2. **Fill Form Manually** - Step-by-step guided form
-3. **Paste Data** - If you have structured data
+3. **Free Text** - Natural language input
+4. **EDI Upload** - Direct 837P file upload
         """)
         
-        col_a, col_b, col_c = st.columns(3)
+        col_a, col_b, col_c, col_d = st.columns(4)
         with col_a:
             if st.button("📁 Upload PDF", use_container_width=True, key="btn_pdf"):
                 st.session_state.current_view = "upload_pdf"
@@ -276,8 +369,24 @@ with col_right:
                 st.session_state.current_view = "fill_form"
                 st.rerun()
         with col_c:
+            if st.button("📝 Free Text", use_container_width=True, key="btn_text"):
+                st.session_state.current_view = "free_text"
+                st.rerun()
+        with col_d:
+            if st.button("📤 EDI Upload", use_container_width=True, key="btn_edi"):
+                st.session_state.current_view = "edi_upload"
+                st.rerun()
+        
+        st.divider()
+        
+        col_a, col_b = st.columns(2)
+        with col_a:
             if st.button("✅ Validate", use_container_width=True, key="btn_validate"):
                 st.session_state.current_view = "validate"
+                st.rerun()
+        with col_b:
+            if st.button("⚙️ Settings", use_container_width=True, key="btn_settings"):
+                st.session_state.current_view = "settings"
                 st.rerun()
     
     # PDF UPLOAD VIEW
@@ -360,10 +469,18 @@ with col_right:
                     placeholder="1234567890",
                     max_chars=10
                 )
+                
+                # NPI Lookup Button
+                if provider_npi and len(provider_npi) == 10 and st.button("🔍 Lookup NPI Details"):
+                    npi_result = lookup_npi(provider_npi)
+                    if npi_result:
+                        st.session_state.npi_lookup_result = npi_result
+                        st.success("✅ NPI Found!")
+                
                 pdf_marker = " ✅" if st.session_state.pdf_data and st.session_state.pdf_data.get("provider_first") else ""
                 provider_first = st.text_input(
                     f"First Name{pdf_marker}",
-                    value=st.session_state.pdf_data.get("provider_first") if st.session_state.pdf_data else "",
+                    value=st.session_state.npi_lookup_result.get("first_name", "") if st.session_state.npi_lookup_result else (st.session_state.pdf_data.get("provider_first") if st.session_state.pdf_data else ""),
                     placeholder="Jane"
                 )
             
@@ -371,7 +488,7 @@ with col_right:
                 pdf_marker = " ✅" if st.session_state.pdf_data and st.session_state.pdf_data.get("provider_last") else ""
                 provider_last = st.text_input(
                     f"Last Name{pdf_marker}",
-                    value=st.session_state.pdf_data.get("provider_last") if st.session_state.pdf_data else "",
+                    value=st.session_state.npi_lookup_result.get("last_name", "") if st.session_state.npi_lookup_result else (st.session_state.pdf_data.get("provider_last") if st.session_state.pdf_data else ""),
                     placeholder="Smith"
                 )
             
@@ -462,6 +579,117 @@ with col_right:
             st.session_state.current_view = "home"
             st.rerun()
     
+    # FREE TEXT INPUT VIEW
+    elif st.session_state.current_view == "free_text":
+        st.markdown("### 📝 Free Text Input")
+        st.write("Enter claim information in any format. We'll parse it automatically.")
+        
+        with st.form("free_text_form"):
+            claim_text = st.text_area(
+                "Claim Details",
+                height=200,
+                placeholder="John Doe, DOB 01/15/1980, Dr. Jane Smith NPI 1234567890, "
+                           "CPT 99213 on 2024-01-10 for $150, ICD-10 J45.901"
+            )
+            
+            submitted = st.form_submit_button("📝 Parse & Validate", use_container_width=True)
+            
+            if submitted and claim_text:
+                with st.spinner("Parsing text..."):
+                    parsed = parse_free_text(claim_text)
+                
+                if parsed:
+                    st.session_state.current_claim = parsed
+                    st.json(parsed)
+                    st.success("✅ Text parsed! Review and validate below.")
+                    
+                    if st.button("✅ Use This Data", use_container_width=True):
+                        validation_result = validate_claim_data(parsed)
+                        st.session_state.validation_result = validation_result
+                        st.session_state.current_view = "validate"
+                        st.rerun()
+                else:
+                    st.warning("⚠️ Could not parse text. Try filling the form manually.")
+        
+        if st.button("← Back", use_container_width=True):
+            st.session_state.current_view = "home"
+            st.rerun()
+    
+    # EDI 837P UPLOAD VIEW
+    elif st.session_state.current_view == "edi_upload":
+        st.markdown("### 📤 EDI 837P Upload")
+        st.write("Upload an EDI 837P file for direct processing.")
+        
+        uploaded_file = st.file_uploader("Select EDI file", type=["837", "txt", "edi"])
+        
+        if uploaded_file:
+            edi_content = uploaded_file.read().decode('utf-8', errors='ignore')
+            
+            if st.button("🔍 Parse EDI", use_container_width=True):
+                with st.spinner("Parsing EDI file..."):
+                    parsed = parse_edi_file(edi_content)
+                
+                if parsed:
+                    st.success("✅ EDI parsed successfully!")
+                    st.json(parsed, expanded=False)
+                    
+                    if st.button("✅ Use EDI Data", use_container_width=True):
+                        st.session_state.current_claim = parsed
+                        validation_result = validate_claim_data(parsed)
+                        st.session_state.validation_result = validation_result
+                        st.session_state.current_view = "validate"
+                        st.rerun()
+                else:
+                    st.error("❌ Failed to parse EDI file. Ensure it's a valid 837P format.")
+        
+        if st.button("← Back", use_container_width=True):
+            st.session_state.current_view = "home"
+            st.rerun()
+    
+    # SETTINGS VIEW
+    elif st.session_state.current_view == "settings":
+        st.markdown("### ⚙️ Settings")
+        
+        st.subheader("📊 Saved Claims")
+        if st.session_state.saved_claims:
+            st.write(f"Total saved: {len(st.session_state.saved_claims)}")
+            for idx, claim_path in enumerate(st.session_state.saved_claims[-5:], 1):
+                st.caption(f"{idx}. {claim_path}")
+        else:
+            st.info("No saved claims yet")
+        
+        st.divider()
+        
+        st.subheader("🔧 Configuration")
+        st.write(f"**AI Provider**: {Config.AI_PROVIDER.upper()}")
+        st.write(f"**Ollama URL**: {Config.OLLAMA_URL}")
+        st.write(f"**Available Models**: {len(get_available_models())}")
+        
+        st.divider()
+        
+        st.subheader("💾 Actions")
+        col_a, col_b = st.columns(2)
+        
+        with col_a:
+            if st.button("🔄 Clear Chat History", use_container_width=True):
+                st.session_state.chat_history = []
+                st.success("✅ Chat history cleared")
+                st.rerun()
+        
+        with col_b:
+            if st.button("🗑️ Reset All", use_container_width=True):
+                for key in list(st.session_state.keys()):
+                    if key not in ["chat_history"]:
+                        del st.session_state[key]
+                st.success("✅ Reset complete")
+                st.rerun()
+        
+        st.divider()
+        
+        if st.button("🏠 Home", use_container_width=True):
+            st.session_state.current_view = "home"
+            st.rerun()
+    
     # VALIDATION VIEW
     elif st.session_state.current_view == "validate":
         st.markdown("### ✅ Validation Results")
@@ -489,19 +717,23 @@ with col_right:
             
             # Next steps
             st.divider()
-            col_a, col_b, col_c = st.columns(3)
+            col_a, col_b, col_c, col_d = st.columns(4)
             with col_a:
                 if st.button("📝 Edit Claim", use_container_width=True):
                     st.session_state.current_view = "fill_form"
                     st.rerun()
             with col_b:
-                if st.button("💾 Save Claim", use_container_width=True):
-                    st.success("💾 Claim saved! (Demo mode)")
-                    st.session_state.chat_history.append({
-                        "role": "assistant",
-                        "content": "💾 Claim has been saved successfully!"
-                    })
+                if st.button("💾 Save JSON", use_container_width=True):
+                    success, path = save_claim_to_file(result)
+                    if success:
+                        st.success(f"✅ Saved to: {path}")
+                        st.session_state.saved_claims.append(path)
+                    else:
+                        st.error(f"❌ Save failed: {path}")
             with col_c:
+                if st.button("📤 Export EDI", use_container_width=True):
+                    st.info("EDI export feature coming soon")
+            with col_d:
                 if st.button("🏠 Home", use_container_width=True):
                     st.session_state.current_view = "home"
                     st.rerun()
