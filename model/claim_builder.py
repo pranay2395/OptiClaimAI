@@ -70,6 +70,7 @@ class ClaimBuilder:
             ],
             service_date=service_date,
             place_of_service=form_data.get('place_of_service', '11'),
+            payer_name=form_data.get('payer_name'),
         )
         
         return claim

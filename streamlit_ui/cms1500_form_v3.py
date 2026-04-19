@@ -27,6 +27,13 @@ def render_cms1500_form() -> dict | None:
         with col1:
             insurance_id = st.text_input("Member / insurance ID *")
         with col2:
+            payer_name = st.selectbox(
+                "Payer *",
+                ["Medicare", "Medicaid", "Blue Cross Blue Shield", "Aetna", "Cigna", "UnitedHealthcare", "Other"],
+            )
+
+        col1, col2 = st.columns(2)
+        with col1:
             place_of_service = st.selectbox(
                 "Place of service *",
                 ["11", "20", "21", "22", "24", "31", "41"],
@@ -66,6 +73,11 @@ def render_cms1500_form() -> dict | None:
             with col2:
                 provider_tax_id = st.text_input("Tax ID")
                 provider_facility = st.text_input("Facility name")
+
+        with st.expander("Authorization and support docs"):
+            has_prior_auth = st.checkbox("Prior authorization already obtained")
+            referral_on_file = st.checkbox("Referral on file")
+            chart_note_ready = st.checkbox("Clinical note ready")
 
         st.markdown("**Visit & coding**")
         service_date = st.date_input("Service date *", value=date.today())
@@ -131,6 +143,7 @@ def render_cms1500_form() -> dict | None:
         "patient_dob": patient_dob,
         "patient_gender": patient_gender or None,
         "insurance_id": insurance_id.strip(),
+        "payer_name": payer_name,
         "group_number": group_number.strip() or None,
         "patient_phone": patient_phone.strip() or None,
         "patient_email": patient_email.strip() or None,
@@ -141,6 +154,9 @@ def render_cms1500_form() -> dict | None:
         "provider_phone": provider_phone.strip() or None,
         "provider_tax_id": provider_tax_id.strip() or None,
         "provider_facility": provider_facility.strip() or None,
+        "has_prior_auth": has_prior_auth,
+        "referral_on_file": referral_on_file,
+        "chart_note_ready": chart_note_ready,
         "service_date": service_date,
         "place_of_service": place_of_service,
         "diagnoses": diagnoses,

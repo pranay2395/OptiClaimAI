@@ -5,10 +5,19 @@ Shared claim analysis helpers for Streamlit workflows.
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
+from engine.business_features import (
+    apply_safe_autofixes,
+    documentation_checklist,
+    generate_appeal_letter,
+    get_payer_profile,
+    integration_payload,
+    payer_specific_issues,
+    suggest_corrections,
+)
 from engine.rules_engine_v2 import ClaimRulesEngine
 from model.claim_builder import ClaimBuilder
 from model.claim_schema import Claim, Diagnosis, Patient, Procedure, Provider
@@ -81,12 +90,59 @@ class ClaimAnalysis:
     validation: Dict
     source_label: str
     parsed_claim: Optional[Dict] = None
+    suggested_corrections: List[Dict] = field(default_factory=list)
+    documentation_checklist: List[Dict] = field(default_factory=list)
+    appeal_letter: str = ""
+    integration_payload: Dict = field(default_factory=dict)
+    autofix_changes: List[str] = field(default_factory=list)
+
+
+def _enrich_validation(claim: Claim, validation: Dict, authorization_ready: bool = False) -> Dict:
+    enriched = dict(validation)
+    enriched["authorization_ready"] = authorization_ready
+    enriched["payer_profile"] = get_payer_profile(claim.payer_name)
+    payer_issues = payer_specific_issues(claim, enriched)
+    if payer_issues:
+        issues = list(enriched.get("issues", [])) + payer_issues
+        enriched["issues"] = issues
+        enriched["issue_count"] = len(issues)
+        enriched["high_count"] = enriched.get("high_count", 0) + len(payer_issues)
+        enriched["denial_risk_score"] = min(enriched.get("denial_risk_score", 0) + (10 * len(payer_issues)), 100)
+        score = enriched["denial_risk_score"]
+        if score >= 70:
+            enriched["denial_risk_level"] = "VERY HIGH"
+        elif score >= 50:
+            enriched["denial_risk_level"] = "HIGH"
+        elif score >= 30:
+            enriched["denial_risk_level"] = "MEDIUM"
+        else:
+            enriched["denial_risk_level"] = "LOW"
+        enriched["is_valid"] = not any("CRITICAL" in issue.get("severity", "") for issue in issues)
+    return enriched
+
+
+def _build_analysis(claim: Claim, validation: Dict, source_label: str, parsed_claim: Optional[Dict] = None) -> ClaimAnalysis:
+    corrections = suggest_corrections(claim, validation)
+    checklist = documentation_checklist(claim, validation)
+    appeal = generate_appeal_letter(claim, validation)
+    payload = integration_payload(claim, validation)
+    return ClaimAnalysis(
+        claim=claim,
+        validation=validation,
+        source_label=source_label,
+        parsed_claim=parsed_claim,
+        suggested_corrections=corrections,
+        documentation_checklist=checklist,
+        appeal_letter=appeal,
+        integration_payload=payload,
+    )
 
 
 def analyze_form_claim(form_data: Dict) -> ClaimAnalysis:
     claim = ClaimBuilder.from_form(form_data)
     validation = ClaimRulesEngine().validate(claim)
-    return ClaimAnalysis(claim=claim, validation=validation, source_label="Quick claim form")
+    validation = _enrich_validation(claim, validation, authorization_ready=bool(form_data.get("has_prior_auth")))
+    return _build_analysis(claim, validation, "Quick claim form")
 
 
 def analyze_edi_claims(parsed_data: Dict) -> List[ClaimAnalysis]:
@@ -96,15 +152,19 @@ def analyze_edi_claims(parsed_data: Dict) -> List[ClaimAnalysis]:
         if not claim.claim_id:
             claim.claim_id = f"Claim {idx}"
         validation = ClaimRulesEngine().validate(claim)
-        analyses.append(
-            ClaimAnalysis(
-                claim=claim,
-                validation=validation,
-                source_label="EDI 837 upload",
-                parsed_claim=parsed_claim,
-            )
-        )
+        validation = _enrich_validation(claim, validation, authorization_ready=False)
+        analyses.append(_build_analysis(claim, validation, "EDI 837 upload", parsed_claim))
     return analyses
+
+
+def apply_autofix_and_reanalyze(item: ClaimAnalysis) -> ClaimAnalysis:
+    claim = item.claim
+    changes = apply_safe_autofixes(claim)
+    validation = ClaimRulesEngine().validate(claim)
+    validation = _enrich_validation(claim, validation, authorization_ready=item.validation.get("authorization_ready", False))
+    refreshed = _build_analysis(claim, validation, item.source_label, item.parsed_claim)
+    refreshed.autofix_changes = changes
+    return refreshed
 
 
 def summarize_issues(issues: List[Dict]) -> Dict[str, List[Dict]]:

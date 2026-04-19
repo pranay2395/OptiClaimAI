@@ -1,0 +1,95 @@
+{
+  "claim_id": null,
+  "payer": "Medicaid",
+  "patient": "Jane Doe",
+  "provider": "John Smith",
+  "service_date": "2026-01-10",
+  "claim_amount": 150.0,
+  "source": "Quick claim form",
+  "risk_level": "LOW",
+  "risk_score": 10,
+  "is_valid": true,
+  "issues": [
+    {
+      "severity": "\ud83d\udfe2 LOW",
+      "code": "PATIENT_PHONE_MISSING",
+      "message": "Patient phone number is not provided. This may delay processing.",
+      "field": "patient"
+    },
+    {
+      "severity": "\ud83d\udfe0 HIGH",
+      "code": "PRIOR_AUTH_RECOMMENDED",
+      "message": "Medicaid commonly expects prior authorization or referral confirmation for review-sensitive services.",
+      "field": "authorization"
+    }
+  ],
+  "suggested_corrections": [],
+  "documentation_checklist": [
+    {
+      "item": "Eligibility verification",
+      "status": "Recommended",
+      "reason": "Recommended by payer profile."
+    },
+    {
+      "item": "Referral if required",
+      "status": "Recommended",
+      "reason": "Recommended by payer profile."
+    },
+    {
+      "item": "Progress note",
+      "status": "Recommended",
+      "reason": "Recommended by payer profile."
+    }
+  ],
+  "appeal_letter": "Re: Claim Appeal for Claim ID unassigned\n\nTo Whom It May Concern,\n\nI am writing to request reconsideration of the above claim for Jane Doe. We reviewed the claim internally and identified the following items that may have contributed to a denial or pending rejection:\n\n- Patient phone number is not provided. This may delay processing.\n- Medicaid commonly expects prior authorization or referral confirmation for review-sensitive services.\n\nWe have corrected all available claim details and recommend review of the attached supporting documentation, including the clinical note and any payer-required authorization or eligibility evidence. Based on the billed services and supporting diagnosis information, we believe this claim meets medical-necessity and billing requirements for Medicaid.\n\nPlease reprocess the claim and contact our billing team if further documentation is needed.\n\nSincerely,\nOptiClaimAI Billing Review Team\n",
+  "integration_payload": {
+    "claim_id": null,
+    "payer": "Medicaid",
+    "patient": {
+      "first_name": "Jane",
+      "last_name": "Doe",
+      "insurance_id": "ABC123"
+    },
+    "provider": {
+      "first_name": "John",
+      "last_name": "Smith",
+      "npi": "1234567890"
+    },
+    "risk": {
+      "level": "LOW",
+      "score": 10
+    },
+    "issues": [
+      {
+        "severity": "\ud83d\udfe2 LOW",
+        "code": "PATIENT_PHONE_MISSING",
+        "message": "Patient phone number is not provided. This may delay processing.",
+        "field": "patient"
+      },
+      {
+        "severity": "\ud83d\udfe0 HIGH",
+        "code": "PRIOR_AUTH_RECOMMENDED",
+        "message": "Medicaid commonly expects prior authorization or referral confirmation for review-sensitive services.",
+        "field": "authorization"
+      }
+    ],
+    "recommended_documents": [
+      {
+        "item": "Eligibility verification",
+        "status": "Recommended",
+        "reason": "Recommended by payer profile."
+      },
+      {
+        "item": "Referral if required",
+        "status": "Recommended",
+        "reason": "Recommended by payer profile."
+      },
+      {
+        "item": "Progress note",
+        "status": "Recommended",
+        "reason": "Recommended by payer profile."
+      }
+    ]
+  },
+  "guidance": "guidance text"
+}
