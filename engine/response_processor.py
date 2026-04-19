@@ -149,15 +149,24 @@ class ResponseProcessor:
         
         for result in validation_results:
             for error in result.get('errors', []):
-                error_type = error.get('type', 'Unknown')
+                if isinstance(error, dict):
+                    error_type = error.get('type', 'Unknown')
+                    message = error.get('message')
+                    field = error.get('field')
+                    value = error.get('value')
+                else:
+                    error_type = str(error)
+                    message = str(error)
+                    field = None
+                    value = None
                 error_categories[error_type] = error_categories.get(error_type, 0) + 1
                 
                 error_details.append({
                     'claim_id': result.get('claim_id'),
                     'type': error_type,
-                    'message': error.get('message'),
-                    'field': error.get('field'),
-                    'value': error.get('value')
+                    'message': message,
+                    'field': field,
+                    'value': value
                 })
         
         return {
@@ -173,7 +182,7 @@ class ResponseProcessor:
         
         for result in validation_results:
             for warning in result.get('warnings', []):
-                warning_type = warning.get('type', 'Unknown')
+                warning_type = warning.get('type', 'Unknown') if isinstance(warning, dict) else str(warning)
                 warning_categories[warning_type] = warning_categories.get(warning_type, 0) + 1
         
         return {
@@ -222,7 +231,7 @@ class ResponseProcessor:
         
         for result in validation_results:
             for error in result.get('errors', []):
-                error_type = error.get('type', '').lower()
+                error_type = error.get('type', '').lower() if isinstance(error, dict) else str(error).lower()
                 
                 if 'required' in error_type:
                     recs.add("Fill all required fields before submission")
