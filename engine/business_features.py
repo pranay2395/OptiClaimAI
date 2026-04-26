@@ -306,21 +306,23 @@ def pricing_tiers() -> List[Dict[str, object]]:
     return [
         {
             "plan": "Starter",
-            "price": "$49/mo",
+            "price": "$1/mo",
             "best_for": "Solo billers and small practices",
             "features": [
-                "Single-claim scrubber",
-                "Basic denial risk scoring",
-                "Appeal letter drafts",
-                "Downloadable claim summary",
+                "5 EDI runs per day",
+                "837 validation",
+                "835 denial analysis",
+                "EDI to JSON conversion",
+                "Claim scrubber and appeal draft",
             ],
         },
         {
             "plan": "Pro",
-            "price": "$199/mo",
+            "price": "$3/mo",
             "best_for": "Billing teams and multi-provider clinics",
             "features": [
                 "Everything in Starter",
+                "Unlimited EDI runs",
                 "Batch claim triage",
                 "Payer-specific validation packs",
                 "Prior auth and document checklist",
@@ -329,7 +331,7 @@ def pricing_tiers() -> List[Dict[str, object]]:
         },
         {
             "plan": "Enterprise",
-            "price": "Custom",
+            "price": "$5/mo",
             "best_for": "RCM teams and billing service companies",
             "features": [
                 "Everything in Pro",

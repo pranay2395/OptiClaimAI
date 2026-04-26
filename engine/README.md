@@ -1,35 +1,17 @@
-Engine v2 — Quick start
+## Engine Layer
 
-Directory layout:
+The engine is intentionally compact and focused on the current product path.
 
-engine/
-  src/
-    parser.py
-    rule_engine.py
-    run_rules.py
-  rules/
-    dhcs_rules_v2.json
-  code_sets/
-    cpt.csv
-    icd10.csv
-    npi_enrollment.csv
-  samples/
-    sample_837_prof.txt
-    sample_837_inst.txt
-  tests/
-    test_rule_engine.py
+### Main modules
 
-Quick run (from repo root):
+- `parser.py`: reads uploaded 837 content
+- `claim_analysis.py`: canonical analysis pipeline
+- `rules_engine_v2.py`: deterministic validation rules
+- `business_features.py`: payer packs, pricing, exports, automation payloads
+- `ai_service.py`: provider-agnostic AI integration
+- `product_store.py`: saved reports and lead capture
+- `ollama_wrapper.py`: local Ollama helper
 
-# Run rule runner against professional sample
-python engine/src/run_rules.py engine/samples/sample_837_prof.txt
+### Design goal
 
-# Run rule runner against institutional sample
-python engine/src/run_rules.py engine/samples/sample_837_inst.txt
-
-# Run tests (ensure pytest installed)
-pytest -q engine/tests
-
-Notes:
-- This is a lightweight programmatic rule engine for local testing and experimentation.
-- The parsers and rule handlers are intentionally simple and intended for extension.
+Keep one production path only. Older duplicate analytics, validation, and response-formatting helpers were removed to reduce maintenance cost.

@@ -142,7 +142,7 @@ def analyze_form_claim(form_data: Dict) -> ClaimAnalysis:
     claim = ClaimBuilder.from_form(form_data)
     validation = ClaimRulesEngine().validate(claim)
     validation = _enrich_validation(claim, validation, authorization_ready=bool(form_data.get("has_prior_auth")))
-    return _build_analysis(claim, validation, "Quick claim form")
+    return _build_analysis(claim, validation, "Quick claim form", form_data)
 
 
 def analyze_edi_claims(parsed_data: Dict) -> List[ClaimAnalysis]:

@@ -28,3 +28,4 @@ engine/code_sets/npi_enrollment.csv
 engine/code_sets/NPPES*
 engine/src/          # Deprecated - code moved to engine/
 engine/tests/        # Deprecated test files
+runtime_data/

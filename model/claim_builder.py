@@ -52,7 +52,9 @@ class ClaimBuilder:
                 first_name=form_data.get('provider_first_name', ''),
                 last_name=form_data.get('provider_last_name', ''),
                 npi=form_data.get('provider_npi', ''),
+                tax_id=form_data.get('provider_tax_id'),
                 specialty=form_data.get('provider_specialty'),
+                facility_name=form_data.get('provider_facility'),
                 phone=form_data.get('provider_phone'),
             ),
             diagnoses=[
@@ -62,6 +64,7 @@ class ClaimBuilder:
             procedures=[
                 Procedure(
                     code=p['code'],
+                    description=p.get('description'),
                     units=float(p.get('units', 1)),
                     charge=float(p.get('charge', 0)),
                     modifiers=p.get('modifiers', [])

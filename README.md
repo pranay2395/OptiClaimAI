@@ -1,30 +1,76 @@
 # OptiClaimAI
 
-AI-powered pre-submission claims validation tool for 837 files.
+OptiClaimAI is a lightweight claim-intake and denial-prevention product for small practices, billers, and DME suppliers.
 
-## Features
+## What It Does
 
-- Parse and validate 837 EDI files
-- AI-driven denial prediction using rules or Ollama
-- In-memory processing for security (no file storage)
-- PHI masking in results
-- Streamlit web UI
+- Captures patient intake for office and DME workflows
+- Parses uploaded 837 files
+- Scores denial risk before submission
+- Explains probable denial reasons in plain language
+- Generates intake packages, appeal drafts, and integration payloads
+- Supports optional premium automation via user-provided webhook / API endpoint
+- Works with:
+  - built-in deterministic guidance
+  - Ollama
+  - Hugging Face Inference
+  - Groq
+  - OpenRouter
+  - custom OpenAI-compatible endpoints
 
-## Setup
+## Product Shape
 
-1. Clone the repo
-2. Install dependencies: `pip install -r requirements.txt`
-3. Run the app: `streamlit run streamlit_app.py`
+This repo is optimized for a low-cost product tier in the `$1-$5` range by focusing on:
 
-## Usage
+- simple intake
+- useful pre-submit QA
+- downloadable office-ready payloads
+- optional automation for premium tiers
 
-Upload a synthetic 837 file or use included samples. Toggle Ollama for local AI inference.
+## Main App
 
-## Disclaimer
+Run the Streamlit app:
 
-This is a demo tool. Do not upload real PHI. Files are processed in-session only.
+```bash
+pip install -r requirements.txt
+streamlit run streamlit_app.py
+```
 
-## Deployment
+Copy `.env.example` to `.env` and set `OPTICLAIM_MASTER_KEY` for persistent encrypted PHI report storage.
 
-Deploy to Streamlit Cloud by pushing to GitHub.
+## Core Files
 
+- `streamlit_app.py`: main product UI
+- `streamlit_ui/cms1500_form_v3.py`: office and DME intake form
+- `engine/claim_analysis.py`: analysis pipeline
+- `engine/business_features.py`: payer packs, appeal drafts, pricing, exports
+- `engine/ai_service.py`: provider-agnostic AI integration
+- `engine/secure_store.py`: encrypted PHI-bearing runtime storage and lead capture
+
+## Runtime Output
+
+Saved product artifacts are written to:
+
+- `runtime_data/secure_reports/`
+- `runtime_data/leads.jsonl`
+
+Claim reports are encrypted at rest. Configure `OPTICLAIM_MASTER_KEY` for a stable encryption key; otherwise the app uses an ephemeral dev-only key for the current process.
+
+## Selling Position
+
+The most sellable low-ticket offer in this repo is:
+
+- Starter `$1/mo`: 5 EDI tool runs/day, 837 validation, 835 denial analysis, JSON conversion
+- Pro `$3/mo`: unlimited runs, batch triage, payer packs, docs checklist, dashboard
+- Enterprise `$5/mo`: integrations and automation handoff
+
+This is positioned as a lightweight workflow tool for:
+
+- small clinics
+- DME suppliers
+- independent billers
+- analysts and developers debugging EDI
+
+## Status
+
+This is now a compact single-app Streamlit product. Older duplicate UI flows and legacy helpers were removed to reduce maintenance overhead.
